@@ -191,6 +191,8 @@ declare global {
   interface SupportInfo {
     appName: string;
     version: string;
+    currentUser: string;
+    creatorMode: boolean;
     isPackaged: boolean;
     storageMode: "sqlite" | "fallback";
     userDataPath: string;
@@ -236,6 +238,8 @@ declare global {
     appInfo: {
       appName: string;
       version: string;
+      currentUser: string;
+      creatorMode: boolean;
     };
     contabilidadApi: {
       listEmpresas: () => Promise<Empresa[]>;

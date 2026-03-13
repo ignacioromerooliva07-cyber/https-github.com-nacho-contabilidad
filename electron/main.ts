@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import path from "node:path";
 import fs from "node:fs";
 import https from "node:https";
+import os from "node:os";
 import { autoUpdater } from "electron-updater";
 import type { ProgressInfo, UpdateInfo } from "electron-updater";
 import {
@@ -65,6 +66,8 @@ type IndicadoresResponse = IndicadoresData & {
 type SoporteMantenimiento = {
   appName: string;
   version: string;
+  currentUser: string;
+  creatorMode: boolean;
   isPackaged: boolean;
   storageMode: "sqlite" | "fallback";
   userDataPath: string;
@@ -129,6 +132,8 @@ let updateInterval: NodeJS.Timeout | null = null;
 const updateFeedUrl = (process.env.CONTABILIDAD_UPDATE_URL ?? process.env.AUTO_UPDATE_URL ?? "").trim() || null;
 const updateGithubOwner = (process.env.CONTABILIDAD_GH_OWNER ?? "ignacioromerooliva07-cyber").trim() || null;
 const updateGithubRepo = (process.env.CONTABILIDAD_GH_REPO ?? "https-github.com-nacho-contabilidad").trim() || null;
+const currentUser = (process.env.USERNAME ?? os.userInfo().username ?? "").trim();
+const creatorMode = ["nacho"].includes(currentUser.toLowerCase());
 
 function resolveUpdateProvider(): {
   provider: "generic" | "github" | "disabled";
@@ -590,18 +595,96 @@ async function askCopilotIa(input: CopilotAskInput): Promise<CopilotAskResult> {
     }
   }
 
+  // ── Checklist de cierre mensual ──────────────────────────────────────────
+  if (/(checklist|lista de cierre|plan de cierre|cierre mensual|cierre del mes|paso a paso.*cierre|pasos.*cierre|cerrar.*mes)/.test(lower)) {
+    const pasos = [
+      "1. Asegúrate de que todos los comprobantes y documentos del período estén ingresados.",
+      "2. Cuadra Débito Fiscal vs. Crédito Fiscal del IVA: el saldo es lo que se declara o recupera.",
+      "3. Verifica que Debe = Haber en cada asiento (cuadratura total del período).",
+      "4. Concilia saldo bancario con libro de caja/banco usando el extracto del mes.",
+      "5. Provisiona remuneraciones, vacaciones y cotizaciones pendientes si corresponde.",
+      "6. Revisa cuentas por cobrar y pagar: saldos negativos raros indican asientos mal ingresados.",
+      "7. Deprecia activos fijos en uso (método lineal o el que definiste al activarlos).",
+      "8. Genera Balance de Comprobación desde la app y verifica cuadratura total.",
+      "9. Revisa la Auditoría interna: corrige documentos observados antes de declarar.",
+      "10. Respalda la base de datos y exporta o imprime los estados del período."
+    ];
+
+    const notas: string[] = [];
+    if (contexto.asientos === 0) {
+      notas.push("Nota: aún no hay asientos registrados en este período. El checklist aplica cuando hay movimientos reales.");
+    } else {
+      notas.push(`En ${contexto.empresaNombre} veo ${contexto.asientos} asiento(s) y ${contexto.cuentas} cuenta(s) activas. Ese es el universo de este cierre.`);
+    }
+    if (contexto.auditoria > 0) {
+      notas.push(`Hay ${contexto.auditoria} registro(s) pendiente(s) en Auditoría — no cierres sin resolver el paso 9.`);
+    }
+
+    return {
+      answer: [
+        `Checklist de cierre mensual — ${contexto.empresaNombre}:`,
+        "",
+        ...pasos,
+        "",
+        notas.join("\n"),
+        "",
+        "Tip docente: hacer el cierre en orden, sin saltarse pasos aunque el mes sea pequeño, es exactamente lo que te exige cualquier auditor externo en una revisión real."
+      ].join("\n"),
+      suggestedActions: [
+        "Revisar Auditoría ahora",
+        "Ver Balance de Comprobación",
+        "Explicarme el paso 7 (depreciación)"
+      ],
+      confidence: "alta"
+    };
+  }
+
+  // ── Balance General / análisis patrimonial ───────────────────────────────
+  if (/(balance general|situacion financiera|activo corriente|activo fijo|pasivo corriente|patrimonio neto|ecuacion contable|activo.*pasivo|pasivo.*patrimonio)/.test(lower)) {
+    const lineas = [
+      "El Balance General (o Estado de Situación Financiera en NIIF) muestra la foto del negocio en un momento:",
+      "  Activo = Pasivo + Patrimonio  →  esta ecuación siempre debe cuadrar.",
+      "",
+      "Activo Corriente: caja, banco, clientes a cobrar (se espera cobrar en menos de 12 meses).",
+      "Activo No Corriente: activos fijos, intangibles, inversiones de largo plazo.",
+      "Pasivo Corriente: proveedores, IVA por pagar, deudas a menos de 12 meses.",
+      "Pasivo No Corriente: préstamos de largo plazo, leasing.",
+      "Patrimonio: capital + utilidades retenidas ± resultados del ejercicio.",
+      "",
+      "Si el Balance no cuadra: revisa asientos mal categorizados o cuentas sin contrapartida."
+    ];
+
+    if (contexto.asientos > 0) {
+      lineas.push(`\nEn ${contexto.empresaNombre} hay ${contexto.asientos} asiento(s) registrados. Revisa la pestaña Balance para ver la estructura actual.`);
+    } else {
+      lineas.push("\nAún no hay asientos para generar un balance. Registra operaciones y el balance se construye solo.");
+    }
+
+    return {
+      answer: lineas.join("\n"),
+      suggestedActions: [
+        "Ver Balance en la app",
+        "Pedir checklist de cierre",
+        "Explicar Activo Corriente con ejemplos"
+      ],
+      confidence: "alta"
+    };
+  }
+
   if (/(niif|ifrs|norma internacional|estado financiero)/.test(lower)) {
     return {
       answer: [
-        "Guia NIIF (resumen practico):",
-        "- NIIF para PYMES: usa politicas contables consistentes, revelaciones claras y evidencia de estimaciones.",
+        "Guía NIIF (resumen práctico para PYMES Chile):",
+        "- NIIF para PYMES: políticas contables consistentes, revelaciones claras y evidencia de estimaciones.",
         "- Devengo: reconoce ingresos y gastos cuando ocurren, no solo cuando se pagan/cobran.",
-        "- Materialidad: prioriza partidas con impacto en decision del usuario de estados financieros.",
-        "- Presentacion: Balance, Estado de Resultados y notas explicativas con trazabilidad documental.",
+        "- Materialidad: prioriza partidas con impacto real en la decisión del usuario de los estados financieros.",
+        "- Presentación mínima: Balance, Estado de Resultados y notas con trazabilidad documental.",
         "",
-        "Si quieres, te puedo traducir esto a un checklist de cierre mensual para tu empresa activa."
+        "Tip docente: el criterio de devengo es el que más lleva a errores en primer año. Si tienes dudas de cuándo reconocer un ingreso o gasto, pregúntame con el caso concreto.",
+        "",
+        "¿Quieres que esto lo traduzca a un checklist de cierre mensual para tu empresa activa?"
       ].join("\n"),
-      suggestedActions: ["Pedir checklist NIIF mensual", "Pedir formato de notas contables"],
+      suggestedActions: ["Pedir checklist de cierre mensual", "Consultar devengo con un ejemplo"],
       confidence: "media"
     };
   }
@@ -610,33 +693,41 @@ async function askCopilotIa(input: CopilotAskInput): Promise<CopilotAskResult> {
     return {
       answer: [
         "Resumen tributario Chile (orientativo):",
-        "- F29: se basa en debito fiscal de ventas menos credito fiscal de compras con respaldo valido.",
-        "- Factura afecta genera IVA; factura/boleta exenta no genera debito de IVA.",
-        "- Honorarios: normalmente implican retencion y control separado para declaracion.",
-        "- Sin documento: aumenta riesgo de observaciones en fiscalizacion.",
+        "- F29: Débito Fiscal (ventas afectas) − Crédito Fiscal (compras con factura válida) = IVA a pagar o recuperar.",
+        "- Factura afecta: genera IVA de 19% en el asiento.",
+        "- Factura/boleta exenta: no genera débito de IVA; va directo al ingreso.",
+        "- Boleta de honorarios: implica retención y se declara por separado del IVA.",
+        "- Sin documento: la operación queda sin respaldo válido → riesgo de observación en fiscalización.",
         "",
-        "Si me das un caso concreto (monto, documento, medio de pago), te propongo asiento y criterio tributario."
+        "Tip docente: el error más frecuente es mezclar crédito fiscal de compras sin factura. SII no acepta IVA sin respaldo físico o electrónico válido.",
+        "",
+        "Si me das el caso concreto (monto, tipo de documento, medio de pago), te propongo el asiento y te digo cómo impacta el F29."
       ].join("\n"),
-      suggestedActions: ["Solicitar asiento propuesto", "Pedir impacto en F29"],
+      suggestedActions: [
+        "Pedir asiento propuesto con caso concreto",
+        "Pedir checklist de cierre tributario",
+        "Explicar Débito vs. Crédito Fiscal"
+      ],
       confidence: "media"
     };
   }
 
-  if (/(asiento|debe|haber|partida doble|balance|libro diario|libro mayor|cierre)/.test(lower)) {
+  if (/(asiento|debe|haber|partida doble|libro diario|libro mayor)/.test(lower)) {
     return {
       answer: [
         "Criterio contable operativo:",
-        "- Todo asiento debe cuadrar: Debe = Haber.",
-        "- Libro Diario registra la cronologia; Libro Mayor concentra por cuenta.",
-        "- Antes de cierre: valida documentos, cuentas de IVA, provisiones y conciliaciones.",
+        "- Todo asiento debe cuadrar: Debe = Haber (sin excepción).",
+        "- Libro Diario: registra la cronología de operaciones.",
+        "- Libro Mayor: concentra movimientos por cuenta; desde ahí se construye el Balance.",
+        "- Partida doble: cada operación afecta al menos dos cuentas en sentidos opuestos.",
         "",
         contexto.asientos > 0
-          ? "Puedo darte un plan de cierre paso a paso para el mes actual de tu empresa activa."
-          : "Aun no hay asientos para cierre; primero te puedo guiar con un asiento inicial correcto."
+          ? `En ${contexto.empresaNombre} ya tienes ${contexto.asientos} asiento(s). Si quieres, reviso si la estructura general tiene algún descuadre o cuenta fuera de lugar.`
+          : "Aún no hay asientos. Puedo guiarte con el primer registro o con un caso completo de capital inicial."
       ].join("\n"),
       suggestedActions: contexto.asientos > 0
-        ? ["Pedir plan de cierre", "Pedir control de cuadratura"]
-        : ["Registrar asiento inicial", "Definir cuentas principales"],
+        ? ["Revisar si todo está correcto", "Pedir checklist de cierre"]
+        : ["Registrar primer asiento", "Ver ejemplo de capital inicial"],
       confidence: "alta"
     };
   }
@@ -905,6 +996,8 @@ function getSoporteMantenimiento(): SoporteMantenimiento {
   return {
     appName: app.getName(),
     version: app.getVersion(),
+    currentUser,
+    creatorMode,
     isPackaged: app.isPackaged,
     storageMode: getStorageMode(),
     userDataPath: app.getPath("userData"),

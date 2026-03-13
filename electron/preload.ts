@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from "electron";
 const appInfo = ipcRenderer.sendSync("app:get-info-sync") as {
   appName: string;
   version: string;
+  currentUser: string;
+  creatorMode: boolean;
   isPackaged: boolean;
   storageMode: "sqlite" | "fallback";
   userDataPath: string;
@@ -12,7 +14,9 @@ const appInfo = ipcRenderer.sendSync("app:get-info-sync") as {
 
 contextBridge.exposeInMainWorld("appInfo", {
   appName: appInfo.appName,
-  version: appInfo.version
+  version: appInfo.version,
+  currentUser: appInfo.currentUser,
+  creatorMode: appInfo.creatorMode
 });
 
 contextBridge.exposeInMainWorld("contabilidadApi", {

@@ -99,6 +99,14 @@ type TareaCierreAuditoria = {
   detalle: string;
 };
 
+type InsightPrivado = {
+  id: string;
+  titulo: string;
+  detalle: string;
+  accion?: "seed-plan" | "go-copilot" | "ask-review" | "ask-capital" | "ask-cierre" | "ask-balance" | "ask-niif" | "go-soporte" | "check-updates";
+  accionLabel?: string;
+};
+
 type CatalogoAnual = {
   f29: Record<string, string>;
   f22: Record<string, string>;
@@ -374,6 +382,227 @@ export default function App(): JSX.Element {
 
     return `Hay una nueva version ${updateState.latestVersion} disponible para descargar`;
   }, [updateState, mostrarAvisoUpdateSuperior]);
+
+  const esModoCreador = useMemo(
+    () => supportInfo?.creatorMode ?? window.appInfo.creatorMode,
+    [supportInfo]
+  );
+
+  const sugerenciasPrivadasVista = useMemo<InsightPrivado[]>(() => {
+    if (!esModoCreador) return [];
+
+    if (!empresaActivaId) {
+      return [
+        {
+          id: "sin-empresa",
+          titulo: "Parte por el contexto correcto",
+          detalle: "Como estas terminando tu formación, la mejor ayuda ahora es trabajar siempre sobre una empresa activa para que las sugerencias no salgan en el aire.",
+          accion: "go-copilot",
+          accionLabel: "Abrir Copilot IA"
+        }
+      ];
+    }
+
+    if (vista === "principal") {
+      return [
+        ...(cuentas.length === 0
+          ? [{
+              id: "plan-base",
+              titulo: "Carga el plan base antes de registrar",
+              detalle: "Sin cuentas cargadas, el motor improvisa códigos al vuelo y eso complica la auditoría después. Un minuto ahora te ahorra correcciones más tarde.",
+              accion: "seed-plan",
+              accionLabel: "Cargar plan base"
+            } satisfies InsightPrivado]
+          : []),
+        {
+          id: "registro-guia",
+          titulo: "Escribe operaciones en lenguaje natural",
+          detalle: "Ejemplo real: 'capital inicial con banco 6.000.000, computadores 1.500.000, mobiliario 1.000.000'. El motor separa cada bien en su cuenta antes de pedir confirmación.",
+          accion: "ask-capital",
+          accionLabel: "Ver ejemplo guiado"
+        },
+        ...(asientos.length > 0
+          ? [{
+              id: "salud-rapida",
+              titulo: `Ya tienes ${asientos.length} asiento(s) — tiempo de verificar`,
+              detalle: "Pide una revisión rápida al Copilot IA para detectar si hay descuadres o documentos que generen riesgo tributario antes del cierre.",
+              accion: "ask-review" as const,
+              accionLabel: "Verificar ahora"
+            } satisfies InsightPrivado]
+          : [])
+      ];
+    }
+
+    if (vista === "auditoria") {
+      return [
+        {
+          id: "auditoria-guia",
+          titulo: "Usa cada observación como tutoría de criterio",
+          detalle: "Cada alerta de auditoría te está diciendo algo sobre riesgo contable o tributario. Pídeme que te explique la causa y cómo corregirla con criterio profesional.",
+          accion: "ask-review",
+          accionLabel: "Explicar observaciones"
+        },
+        {
+          id: "auditoria-cierre",
+          titulo: "Limpia auditoría antes del cierre mensual",
+          detalle: "Las observaciones pendientes en este panel deben resolverse antes de generar estados financieros. Así evitas que el balance refleje errores sin corrección.",
+          accion: "ask-cierre",
+          accionLabel: "Ver checklist de cierre"
+        }
+      ];
+    }
+
+    if (vista === "tributario") {
+      return [
+        {
+          id: "tributario-f29",
+          titulo: "Verifica el cálculo de IVA antes de declarar",
+          detalle: "El F29 depende de que Débito Fiscal y Crédito Fiscal estén bien separados. Si hay facturas mixtas o exentas sin marcar, el cálculo puede quedar incorrecto.",
+          accion: "ask-review",
+          accionLabel: "Revisar IVA"
+        },
+        {
+          id: "tributario-cierre",
+          titulo: "Pide el checklist de cierre tributario",
+          detalle: "Te guío paso a paso: documentos, IVA, provisiones, conciliación y respaldo. Es más útil que revisar solo el número final.",
+          accion: "ask-cierre",
+          accionLabel: "Ver checklist"
+        }
+      ];
+    }
+
+    if (vista === "balance") {
+      return [
+        {
+          id: "balance-estructura",
+          titulo: "El balance te dice si la empresa está sana",
+          detalle: "Revisa que Activo = Pasivo + Patrimonio (cuadratura NIIF). Si no cuadra, hay un asiento mal registrado o una cuenta mal clasificada. Puedo ayudarte a encontrarlo.",
+          accion: "ask-balance",
+          accionLabel: "Entender el balance"
+        },
+        {
+          id: "balance-cierre",
+          titulo: "Pide checklist completo antes de cerrar",
+          detalle: "Balance correcto + auditoria limpia + IVA cuadrado = cierre sin sorpresas. Puedo darte el flujo completo en pasos claros.",
+          accion: "ask-cierre",
+          accionLabel: "Ver checklist de cierre"
+        }
+      ];
+    }
+
+    if (vista === "estado-resultados") {
+      return [
+        {
+          id: "eerr-criterio",
+          titulo: "El Estado de Resultados te muestra si ganaste o perdiste",
+          detalle: "Ingresos − Gastos = Resultado del ejercicio. Si el resultado no parece coherente con la operación real, revisa si hay gastos no deducibles o ingresos sin reconocer.",
+          accion: "ask-niif",
+          accionLabel: "Consultar criterio NIIF"
+        },
+        {
+          id: "eerr-cierre",
+          titulo: "Cierra el período con criterio, no solo con números",
+          detalle: "Después de revisar el EE.RR., conviene confirmar provisiones, depreciaciones y devengo del mes. Te guío con el checklist de cierre si quieres.",
+          accion: "ask-cierre",
+          accionLabel: "Ver checklist"
+        }
+      ];
+    }
+
+    if (vista === "soporte") {
+      return [
+        {
+          id: "updates-creador",
+          titulo: "Mantén tu versión al día mientras construyes",
+          detalle: "Como creador, este panel te permite validar que los releases llegan correctamente sin perder la trazabilidad del producto.",
+          accion: "check-updates",
+          accionLabel: "Buscar updates"
+        }
+      ];
+    }
+
+    if (vista === "copilot") {
+      return [
+        {
+          id: "copilot-libre",
+          titulo: "Tráeme el caso como se lo contarías a una contadora",
+          detalle: "No necesitas usar parámetros técnicos. Describe la situación con monto, documento y contexto y yo lo interpreto con lógica contable y tributaria real.",
+          accion: "ask-review",
+          accionLabel: "Probar revisión completa"
+        },
+        {
+          id: "copilot-checklist",
+          titulo: "¿Estás en período de cierre?",
+          detalle: "Pide el checklist mensual y te guío paso a paso: IVA, cuadratura, auditoría limpia, respaldo. Sin saltar etapas aunque el período sea pequeño.",
+          accion: "ask-cierre",
+          accionLabel: "Ver checklist"
+        }
+      ];
+    }
+
+    return [];
+  }, [asientos.length, cuentas.length, empresaActivaId, esModoCreador, vista]);
+
+  const sugerenciasRegistroPrivadas = useMemo<InsightPrivado[]>(() => {
+    if (!esModoCreador || vista !== "principal") return [];
+
+    return [
+      {
+        id: "registro-natural",
+        titulo: "El texto libre es más poderoso de lo que parece",
+        detalle: "Escribe como hablarías: 'venta con factura por $150.000 en efectivo' o 'compra de insumos $80.000 con IVA'. El motor detecta tipo, monto, documento y te propone el asiento.",
+        accion: "ask-capital",
+        accionLabel: "Ver ejemplo guiado"
+      },
+      ...(pendienteConfirmacion
+        ? [{
+            id: "registro-validacion",
+            titulo: "Revisa antes de confirmar — es el mejor momento",
+            detalle: "Chequea que el tipo de documento, el monto y la cuenta de contrapartida sean correctos. Corregir aquí toma segundos; corregir después de grabar toma asientos de reversión.",
+            accion: "ask-review",
+            accionLabel: "Pedir doble chequeo"
+          } satisfies InsightPrivado]
+        : [])
+    ];
+  }, [esModoCreador, pendienteConfirmacion, vista]);
+
+  const sugerenciasAsientoPrivadas = useMemo<InsightPrivado[]>(() => {
+    if (!esModoCreador || vista !== "principal") return [];
+
+    if (asientos.length === 0) {
+      return [
+        {
+          id: "sin-asientos",
+          titulo: "Aquí verás el historial cuando empieces a registrar",
+          detalle: "El primer asiento es siempre el más importante: define el contexto contable de la empresa. Si es un capital inicial con varios bienes, usa texto libre y el sistema te los separa.",
+          accion: "ask-capital",
+          accionLabel: "Preparar primer asiento"
+        }
+      ];
+    }
+
+    if (asientos.length <= 5) {
+      return [
+        {
+          id: "asientos-inicio",
+          titulo: `Tienes ${asientos.length} asiento(s) — revisemos si la base está bien`,
+          detalle: "Al inicio es cuando más vale verificar: que las cuentas estén bien clasificadas, que los documentos estén asignados y que la cuadratura sea correcta. Un error temprano se multiplica.",
+          accion: "ask-review",
+          accionLabel: "Revisar base"
+        }
+      ];
+    }
+
+    return [
+      {
+        id: "asientos-mejora",
+        titulo: `${asientos.length} asientos registrados — es buen momento para cierre`,
+        detalle: "Con este volumen ya puedes hacer un mini-cierre: verificar IVA, cuadratura y auditoría limpia. Así llegas a fin de mes sin acumulación de problemas.",
+        accion: "ask-cierre",
+        accionLabel: "Ver checklist de cierre"
+      }
+    ];
+  }, [asientos.length, esModoCreador, vista]);
 
   const balanceGeneral = useMemo(() => {
     if (balance.length === 0) return null;
@@ -1350,6 +1579,60 @@ export default function App(): JSX.Element {
     await enviarPreguntaCopilot(copilotInput);
   }
 
+  async function onEjecutarInsightPrivado(action?: InsightPrivado["accion"]): Promise<void> {
+    if (!action) return;
+
+    if (action === "seed-plan") {
+      await onSeedPlanBase();
+      return;
+    }
+
+    if (action === "go-copilot") {
+      setVista("copilot");
+      return;
+    }
+
+    if (action === "ask-review") {
+      setVista("copilot");
+      await enviarPreguntaCopilot("Revisa si todo está correcto y explícame lo más importante como si me estuvieras guiando profesionalmente.");
+      return;
+    }
+
+    if (action === "ask-capital") {
+      setVista("copilot");
+      await enviarPreguntaCopilot("Quiero registrar un capital inicial con varios bienes. Muéstrame cómo conviene escribirlo y qué revisar antes de confirmarlo.");
+      return;
+    }
+
+    if (action === "ask-cierre") {
+      setVista("copilot");
+      await enviarPreguntaCopilot("Dame el checklist de cierre mensual paso a paso para mi empresa activa. Explícame cada punto con criterio contable y tributario.");
+      return;
+    }
+
+    if (action === "ask-balance") {
+      setVista("copilot");
+      await enviarPreguntaCopilot("Explícame cómo leer el balance general de mi empresa: qué significa cada sección, qué buscar para detectar problemas y cómo cuadra con NIIF.");
+      return;
+    }
+
+    if (action === "ask-niif") {
+      setVista("copilot");
+      await enviarPreguntaCopilot("Explícame los criterios NIIF que aplican al estado de resultados: reconocimiento de ingresos, gastos del período y qué revisar antes del cierre.");
+      return;
+    }
+
+    if (action === "go-soporte") {
+      setVista("soporte");
+      return;
+    }
+
+    if (action === "check-updates") {
+      setVista("soporte");
+      await onBuscarActualizacionesAhora();
+    }
+  }
+
   useEffect(() => {
     void cargarEmpresas();
     void cargarSoporte();
@@ -2174,6 +2457,30 @@ export default function App(): JSX.Element {
         ))}
       </section>
 
+      {esModoCreador && sugerenciasPrivadasVista.length > 0 ? (
+        <section className="creator-insights-bar">
+          <div className="creator-insights-header">
+            <div>
+              <strong>Asistencia privada del creador</strong>
+              <span>Visible solo para tu usuario. Te acompaño con sugerencias de mejora según la pestaña actual.</span>
+            </div>
+          </div>
+          <div className="creator-insights-grid">
+            {sugerenciasPrivadasVista.map((item) => (
+              <article key={item.id} className="creator-insight-card">
+                <h3>{item.titulo}</h3>
+                <p>{item.detalle}</p>
+                {item.accion ? (
+                  <button type="button" className="btn-secundario" onClick={() => void onEjecutarInsightPrivado(item.accion)}>
+                    {item.accionLabel ?? "Aplicar"}
+                  </button>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {vista === "principal" ? (
         <>
       <section className="empresa-layout">
@@ -2602,6 +2909,23 @@ export default function App(): JSX.Element {
             <article className="card">
               <h2>Registro automatico</h2>
               <p className="hint-line">Giro activo: {giroActivoTexto}. Describe la operacion y el sistema la interpreta segun reglas tributarias de Chile.</p>
+              {esModoCreador && sugerenciasRegistroPrivadas.length > 0 ? (
+                <div className="creator-inline-box">
+                  <strong>Ayuda contextual para ti</strong>
+                  <ul>
+                    {sugerenciasRegistroPrivadas.map((item) => (
+                      <li key={item.id}>
+                        <span>{item.detalle}</span>
+                        {item.accion ? (
+                          <button type="button" className="btn-secundario" onClick={() => void onEjecutarInsightPrivado(item.accion)}>
+                            {item.accionLabel ?? "Ver"}
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               <form className="empresa-form" onSubmit={(event) => void onAnalizarOperacion(event)}>
                 <label>
                   Fecha
@@ -2675,6 +2999,23 @@ export default function App(): JSX.Element {
             ) : (
               <article className="card">
                 <h2>Asientos recientes</h2>
+                {esModoCreador && sugerenciasAsientoPrivadas.length > 0 ? (
+                  <div className="creator-inline-box creator-inline-box-tight">
+                    <strong>Sugerencias dentro del registro</strong>
+                    <ul>
+                      {sugerenciasAsientoPrivadas.map((item) => (
+                        <li key={item.id}>
+                          <span>{item.detalle}</span>
+                          {item.accion ? (
+                            <button type="button" className="btn-secundario" onClick={() => void onEjecutarInsightPrivado(item.accion)}>
+                              {item.accionLabel ?? "Ver"}
+                            </button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {!empresaActivaId ? <p>Selecciona una empresa para ver asientos.</p> : null}
                 {empresaActivaId && asientos.length === 0 ? <p>Aun no hay asientos registrados.</p> : null}
                 {edicionAsientoDocumento ? (
