@@ -753,6 +753,7 @@ export function deleteEmpresa(id: number): void {
   }
 
   const deleteCuentas = getDb().prepare("DELETE FROM CuentaContable WHERE empresa_id = ?");
+  const deleteComprobantes = getDb().prepare("DELETE FROM Comprobante WHERE empresa_id = ?");
   const deleteEventos = getDb().prepare("DELETE FROM EventoTributario WHERE empresa_id = ?");
   const deleteAuditoria = getDb().prepare("DELETE FROM RegistroInterpretacion WHERE empresa_id = ?");
   const deleteSocios = getDb().prepare("DELETE FROM SocioEmpresa WHERE empresa_id = ?");
@@ -762,6 +763,7 @@ export function deleteEmpresa(id: number): void {
   );
   const deleteAsientos = getDb().prepare("DELETE FROM Asiento WHERE empresa_id = ?");
   deleteCuentas.run(id);
+  deleteComprobantes.run(id);
   deleteEventos.run(id);
   deleteAuditoria.run(id);
   deleteSocios.run(id);

@@ -1875,8 +1875,9 @@ export default function App(): JSX.Element {
       setMensajeInfo(null);
       await window.contabilidadApi.deleteEmpresa(id);
       await cargarEmpresas();
-    } catch {
-      setMensajeError("No se pudo eliminar la empresa.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo eliminar la empresa.";
+      setMensajeError(message);
     }
   }
 
