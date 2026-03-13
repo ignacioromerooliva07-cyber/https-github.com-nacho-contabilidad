@@ -29,4 +29,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           npm run build
-          npx electron-builder --win nsis --publish always --config.publish.provider=github --config.publish.owner=${{ github.repository_owner }} --config.publish.repo=${{ github.event.repository.name }}
+          npx electron-builder --win nsis --publish always --config.publish.provider=github --config.publish.owner=${{ github.repository_owner }} --config.publish.repo=${{ github.event.repository.name }} --config.publish.releaseType=release
