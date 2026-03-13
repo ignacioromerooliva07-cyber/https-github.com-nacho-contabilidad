@@ -101,6 +101,40 @@ body {
   font-weight: 700;
 }
 
+.update-top-banner {
+  margin-top: 1rem;
+  border: 1px solid #7fcf95;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f6fff9, #e8fff0);
+  box-shadow: 0 8px 20px rgba(16, 42, 67, 0.08);
+  padding: 0.8rem 0.9rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.update-top-banner-text {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.update-top-banner-text strong {
+  color: #1d5f35;
+}
+
+.update-top-banner-text span {
+  color: #315a43;
+  font-size: 0.9rem;
+}
+
+.update-top-banner-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
 .indicadores-barra {
   margin-top: 1.1rem;
   background: rgba(255, 255, 255, 0.78);

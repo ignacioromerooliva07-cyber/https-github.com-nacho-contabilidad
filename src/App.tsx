@@ -337,6 +337,33 @@ export default function App(): JSX.Element {
     }[updateState.status];
   }, [updateState]);
 
+  const mostrarAvisoUpdateSuperior = useMemo(() => {
+    if (!updateState) return false;
+    if (!updateState.latestVersion || updateState.latestVersion === updateState.currentVersion) return false;
+    return (
+      updateState.status === "available"
+      || updateState.status === "downloading"
+      || updateState.status === "downloaded"
+    );
+  }, [updateState]);
+
+  const textoAvisoUpdateSuperior = useMemo(() => {
+    if (!updateState || !mostrarAvisoUpdateSuperior) return "";
+
+    if (updateState.status === "downloading") {
+      const percent = typeof updateState.downloadPercent === "number"
+        ? ` (${updateState.downloadPercent.toFixed(1)}%)`
+        : "";
+      return `Nueva version ${updateState.latestVersion} en descarga${percent}`;
+    }
+
+    if (updateState.status === "downloaded") {
+      return `Nueva version ${updateState.latestVersion} lista para instalar`;
+    }
+
+    return `Hay una nueva version ${updateState.latestVersion} disponible para descargar`;
+  }, [updateState, mostrarAvisoUpdateSuperior]);
+
   const balanceGeneral = useMemo(() => {
     if (balance.length === 0) return null;
 
@@ -1984,6 +2011,29 @@ export default function App(): JSX.Element {
           </div>
         </div>
       </header>
+
+      {mostrarAvisoUpdateSuperior ? (
+        <section className="update-top-banner" role="status" aria-live="polite">
+          <div className="update-top-banner-text">
+            <strong>Actualizacion disponible</strong>
+            <span>{textoAvisoUpdateSuperior}</span>
+          </div>
+          <div className="update-top-banner-actions">
+            <button type="button" className="btn-secundario" onClick={() => setVista("soporte")}>
+              Ver detalles
+            </button>
+            {updateState?.status === "downloaded" ? (
+              <button
+                type="button"
+                onClick={() => void onInstalarActualizacionDescargada()}
+                disabled={instalandoActualizacion}
+              >
+                {instalandoActualizacion ? "Instalando..." : "Instalar ahora"}
+              </button>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       <section className="indicadores-barra">
         <div className="indicadores-header">
