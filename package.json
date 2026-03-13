@@ -1,0 +1,90 @@
+{
+  "name": "contabilidad",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sistema contable de escritorio multiempresa",
+  "author": "Nacho",
+  "license": "UNLICENSED",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on tcp:5173 && electron .",
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "build:renderer": "vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build": "npm run build:renderer && npm run build:electron",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win nsis",
+    "dist:win:unsigned": "npm run dist:win",
+    "dist:win:signed": "npm run build && node scripts/build-signed-win.cjs",
+    "dist:win:github": "npm run build && node scripts/build-github-release.cjs",
+    "updates:publish-local": "node scripts/publish-local-update.cjs",
+    "updates:serve": "node scripts/serve-updates.cjs",
+    "test": "vitest run electron/tributario.test.ts electron/tributario-integration.test.ts",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2",
+    "electron-updater": "^6.8.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vitest": "^4.1.0",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "cl.contabilidad.desktop",
+    "productName": "Contabilidad Desktop",
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "http://127.0.0.1:5507/windows"
+      }
+    ],
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icons/icon.ico",
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Contabilidad Desktop",
+      "installerIcon": "build/icons/icon.ico",
+      "uninstallerIcon": "build/icons/icon.ico",
+      "installerHeaderIcon": "build/icons/icon.ico"
+    }
+  }
+}

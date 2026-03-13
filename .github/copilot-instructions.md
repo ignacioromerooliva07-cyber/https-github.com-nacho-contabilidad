@@ -1,0 +1,13 @@
+- [x] Verify that the copilot-instructions.md file in the .github directory is created. Summary: file created in .github.
+- [x] Clarify Project Requirements. Summary: desktop accounting app for multi-company bookkeeping, reports and balances with Electron + React + TypeScript + SQLite.
+- [x] Scaffold the Project. Summary: manual scaffold completed in current directory (no automated template available for projectType other).
+- [x] Customize the Project. Summary: initialized accounting desktop structure with Electron main/preload, SQLite schema bootstrap, React dashboard shell, and intelligent text interpreter with tributary rules.
+- [x] Install Required Extensions. Summary: no extensions required by project setup info.
+- [x] Compile the Project. Summary: npm.cmd run build validated renderer and electron without blocking errors.
+- [x] Create and Run Task. Summary: existing VS Code task Dev Contabilidad found in .vscode/tasks.json and available for launch.
+- [x] Launch the Project. Summary: launch flow available via Dev Contabilidad task; user is currently testing manually.
+- [x] Ensure Documentation is Complete. Summary: README.md updated and this file cleaned (HTML comments removed).
+
+- Work through each checklist item systematically.
+- Keep communication concise and focused.
+- Follow development best practices.

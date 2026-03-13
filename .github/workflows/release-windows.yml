@@ -1,0 +1,34 @@
+name: Release Windows
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and publish unsigned release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONTABILIDAD_GH_OWNER: ${{ github.repository_owner }}
+          CONTABILIDAD_GH_REPO: ${{ github.event.repository.name }}
+        run: |
+          npm run build
+          node scripts/build-github-release.cjs
