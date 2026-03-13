@@ -108,8 +108,8 @@ let mainWindow: BrowserWindow | null = null;
 let updaterConfigured = false;
 let updateInterval: NodeJS.Timeout | null = null;
 const updateFeedUrl = (process.env.CONTABILIDAD_UPDATE_URL ?? process.env.AUTO_UPDATE_URL ?? "").trim() || null;
-const updateGithubOwner = (process.env.CONTABILIDAD_GH_OWNER ?? "").trim() || null;
-const updateGithubRepo = (process.env.CONTABILIDAD_GH_REPO ?? "").trim() || null;
+const updateGithubOwner = (process.env.CONTABILIDAD_GH_OWNER ?? "ignacioromerooliva07-cyber").trim() || null;
+const updateGithubRepo = (process.env.CONTABILIDAD_GH_REPO ?? "https-github.com-nacho-contabilidad").trim() || null;
 
 function resolveUpdateProvider(): {
   provider: "generic" | "github" | "disabled";
