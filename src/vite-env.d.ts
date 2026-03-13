@@ -213,6 +213,18 @@ declare global {
     storageMode: "sqlite" | "fallback";
   }
 
+  interface CopilotChatMessage {
+    role: "user" | "assistant";
+    content: string;
+    createdAt: string;
+  }
+
+  interface CopilotAskResult {
+    answer: string;
+    suggestedActions: string[];
+    confidence: "alta" | "media";
+  }
+
   interface Window {
     appInfo: {
       appName: string;
@@ -301,6 +313,11 @@ declare global {
       getUpdateState: () => Promise<AppUpdateState>;
       checkForUpdatesNow: () => Promise<{ ok: boolean; message: string }>;
       installDownloadedUpdate: () => Promise<{ ok: boolean; message: string }>;
+      askCopilotIa: (input: {
+        message: string;
+        empresaId?: number | null;
+        history?: Array<{ role: "user" | "assistant"; content: string }>;
+      }) => Promise<CopilotAskResult>;
       onUpdateStatus: (callback: (state: AppUpdateState) => void) => () => void;
       createBackup: () => Promise<BackupResult>;
       openDataFolder: () => Promise<{ ok: boolean; error?: string }>;

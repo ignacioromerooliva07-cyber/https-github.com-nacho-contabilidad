@@ -2,6 +2,7 @@ import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from "
 
 type Vista =
   | "principal"
+  | "copilot"
   | "soporte"
   | "libro-diario"
   | "libro-mayor"
@@ -217,6 +218,16 @@ export default function App(): JSX.Element {
   const [updateState, setUpdateState] = useState<AppUpdateState | null>(null);
   const [buscandoActualizacion, setBuscandoActualizacion] = useState(false);
   const [instalandoActualizacion, setInstalandoActualizacion] = useState(false);
+  const [copilotInput, setCopilotInput] = useState("");
+  const [copilotLoading, setCopilotLoading] = useState(false);
+  const [copilotMensajes, setCopilotMensajes] = useState<CopilotChatMessage[]>([
+    {
+      role: "assistant",
+      content:
+        "Soy Copilot IA. Te apoyo con criterios contables, NIIF y tributarios de Chile. Tambien puedo revisar la salud de tu empresa activa.",
+      createdAt: new Date().toISOString()
+    }
+  ]);
 
   const empresaActiva = useMemo(
     () => empresas.find((empresa) => empresa.id === empresaActivaId) ?? null,
@@ -1277,6 +1288,68 @@ export default function App(): JSX.Element {
     }
   }
 
+  async function enviarPreguntaCopilot(texto: string): Promise<void> {
+    const limpio = texto.trim();
+    if (!limpio) return;
+
+    const mensajeUsuario: CopilotChatMessage = {
+      role: "user",
+      content: limpio,
+      createdAt: new Date().toISOString()
+    };
+
+    setCopilotMensajes((prev) => [...prev, mensajeUsuario]);
+    setCopilotInput("");
+
+    try {
+      setCopilotLoading(true);
+      const historial = [...copilotMensajes, mensajeUsuario]
+        .slice(-8)
+        .map((item) => ({ role: item.role, content: item.content }));
+
+      const respuesta = await window.contabilidadApi.askCopilotIa({
+        message: limpio,
+        empresaId: empresaActivaId,
+        history: historial
+      });
+
+      const textoRespuesta = [
+        respuesta.answer,
+        respuesta.suggestedActions.length
+          ? `\nSiguiente paso sugerido: ${respuesta.suggestedActions[0]}`
+          : ""
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      setCopilotMensajes((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: textoRespuesta,
+          createdAt: new Date().toISOString()
+        }
+      ]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo obtener respuesta de Copilot IA.";
+      setCopilotMensajes((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `No pude responder en este momento: ${message}`,
+          createdAt: new Date().toISOString()
+        }
+      ]);
+    } finally {
+      setCopilotLoading(false);
+    }
+  }
+
+  async function onSubmitCopilot(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    await enviarPreguntaCopilot(copilotInput);
+  }
+
   useEffect(() => {
     void cargarEmpresas();
     void cargarSoporte();
@@ -2081,6 +2154,7 @@ export default function App(): JSX.Element {
       <section className="tabs-bar">
         {[
           { id: "principal", label: "Principal" },
+          { id: "copilot", label: "Copilot IA" },
           { id: "auditoria", label: "Auditoria" },
           { id: "libro-diario", label: "Libro diario" },
           { id: "libro-mayor", label: "Libro mayor" },
@@ -2414,6 +2488,67 @@ export default function App(): JSX.Element {
               </div>
             </article>
           </div>
+        </section>
+      ) : null}
+
+      {vista === "copilot" ? (
+        <section className="card copilot-card">
+          <div className="card-header-row">
+            <div>
+              <h2>Copilot IA</h2>
+              <p>Asistente contable para NIIF, tributacion chilena y control de calidad de registros.</p>
+            </div>
+            <button
+              type="button"
+              className="btn-secundario"
+              onClick={() => void enviarPreguntaCopilot("Revisa si todo esta correcto en la empresa activa")}
+              disabled={copilotLoading}
+            >
+              {copilotLoading ? "Revisando..." : "Verificar todo"}
+            </button>
+          </div>
+
+          <div className="copilot-quick-actions">
+            {[
+              "Como registrar una venta con factura afecta IVA",
+              "Explicame diferencia entre factura y boleta para F29",
+              "Dame checklist NIIF para cierre mensual"
+            ].map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                className="btn-secundario"
+                onClick={() => void enviarPreguntaCopilot(prompt)}
+                disabled={copilotLoading}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+
+          <div className="copilot-chat">
+            {copilotMensajes.map((msg, idx) => (
+              <article key={`${msg.createdAt}-${idx}`} className={`copilot-msg copilot-msg-${msg.role}`}>
+                <span className="copilot-msg-role">{msg.role === "assistant" ? "Copilot IA" : "Tu"}</span>
+                <p>{msg.content}</p>
+                <small>{new Date(msg.createdAt).toLocaleTimeString("es-CL")}</small>
+              </article>
+            ))}
+          </div>
+
+          <form className="copilot-form" onSubmit={(event) => void onSubmitCopilot(event)}>
+            <textarea
+              value={copilotInput}
+              onChange={(event) => setCopilotInput(event.target.value)}
+              placeholder="Escribe tu caso: hecho economico, monto, documento y medio de pago..."
+              rows={4}
+            />
+            <div className="copilot-form-actions">
+              <button type="submit" disabled={copilotLoading || !copilotInput.trim()}>
+                {copilotLoading ? "Respondiendo..." : "Enviar a Copilot IA"}
+              </button>
+            </div>
+          </form>
         </section>
       ) : null}
 

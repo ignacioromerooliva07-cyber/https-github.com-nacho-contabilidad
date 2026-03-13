@@ -371,6 +371,88 @@ body {
   gap: 0.35rem;
 }
 
+.copilot-card {
+  margin-top: 1.25rem;
+}
+
+.copilot-quick-actions {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.copilot-chat {
+  margin-top: 1rem;
+  border: 1px solid #d2e0eb;
+  border-radius: 12px;
+  background: #f8fcff;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.7rem;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.copilot-msg {
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid;
+}
+
+.copilot-msg p {
+  margin: 0.35rem 0;
+  white-space: pre-wrap;
+}
+
+.copilot-msg small {
+  color: #627d98;
+}
+
+.copilot-msg-role {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.copilot-msg-user {
+  background: #ebf5ff;
+  border-color: #9dc5f5;
+}
+
+.copilot-msg-user .copilot-msg-role {
+  color: #1f5f8b;
+}
+
+.copilot-msg-assistant {
+  background: #eefdf3;
+  border-color: #8fd8a7;
+}
+
+.copilot-msg-assistant .copilot-msg-role {
+  color: #1d5f35;
+}
+
+.copilot-form {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.copilot-form textarea {
+  border: 1px solid #9fb3c8;
+  border-radius: 10px;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  resize: vertical;
+}
+
+.copilot-form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .tabs-bar {
   margin-top: 1rem;
   display: flex;

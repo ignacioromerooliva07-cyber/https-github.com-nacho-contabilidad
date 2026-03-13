@@ -97,6 +97,25 @@ type EstadoUpdateRuntime = {
   lastError: string | null;
 };
 
+type CopilotChatRole = "user" | "assistant";
+
+type CopilotChatMessage = {
+  role: CopilotChatRole;
+  content: string;
+};
+
+type CopilotAskInput = {
+  message: string;
+  empresaId?: number | null;
+  history?: CopilotChatMessage[];
+};
+
+type CopilotAskResult = {
+  answer: string;
+  suggestedActions: string[];
+  confidence: "alta" | "media";
+};
+
 let indicadoresCache:
   | {
       fetchedAt: number;
@@ -333,6 +352,247 @@ function writeIndicadoresCacheToDisk(data: IndicadoresData): void {
 
 function withEstado(data: IndicadoresData, estado: IndicadoresEstado): IndicadoresResponse {
   return { ...data, estado };
+}
+
+function formatCopilotMoney(value: number): string {
+  return value.toLocaleString("es-CL", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  });
+}
+
+async function buildCopilotHealthCheck(empresaId: number): Promise<string> {
+  const empresas = listEmpresas();
+  const empresa = empresas.find((item) => item.id === empresaId);
+  if (!empresa) {
+    return "No encuentro la empresa activa. Selecciona una empresa y vuelve a intentar el chequeo.";
+  }
+
+  const asientos = listAsientos(empresaId);
+  const auditoria = listRegistrosAuditoria(empresaId);
+  const balance = getBalanceComprobacion(empresaId);
+  const socios = listSociosEmpresa(empresaId);
+
+  const totalDebe = asientos.reduce((sum, asiento) => sum + asiento.total_debe, 0);
+  const totalHaber = asientos.reduce((sum, asiento) => sum + asiento.total_haber, 0);
+  const descuadre = Math.abs(totalDebe - totalHaber);
+
+  const docsCorrectos = auditoria.filter(
+    (item) => item.tipo_documento !== "SIN_DOCUMENTO" && item.tipo_documento !== "DESCONOCIDO"
+  ).length;
+  const totalAuditables = auditoria.length;
+  const porcentajeDocumentado = totalAuditables === 0 ? 100 : (docsCorrectos / totalAuditables) * 100;
+  const pendientesDocumento = auditoria.filter(
+    (item) => item.tipo_documento === "SIN_DOCUMENTO" || item.tipo_documento === "DESCONOCIDO"
+  ).length;
+
+  const totalParticipacion = socios.reduce((sum, socio) => sum + socio.participacion, 0);
+  const diferenciaSocios = Math.abs(totalParticipacion - 100);
+
+  const saldoDeudorTotal = balance.reduce((sum, row) => sum + row.saldoDeudor, 0);
+  const saldoAcreedorTotal = balance.reduce((sum, row) => sum + row.saldoAcreedor, 0);
+  const diferenciaBalance = Math.abs(saldoDeudorTotal - saldoAcreedorTotal);
+
+  const semaforo =
+    descuadre <= 1 && diferenciaBalance <= 1 && porcentajeDocumentado >= 90 && diferenciaSocios <= 0.5
+      ? "OK"
+      : porcentajeDocumentado >= 70 && descuadre <= 50
+        ? "AVISO"
+        : "CRITICO";
+
+  return [
+    `Diagnostico Copilot IA para ${empresa.nombre} (${empresa.rut ?? "RUT no informado"})`,
+    `Semaforo general: ${semaforo}`,
+    `- Asientos: ${asientos.length} registro(s). Descuadre acumulado Debe/Haber: $${formatCopilotMoney(descuadre)}.`,
+    `- Balance: diferencia de saldos deudor/acreedor: $${formatCopilotMoney(diferenciaBalance)}.`,
+    `- Soporte documental: ${porcentajeDocumentado.toFixed(1)}% documentado (${pendientesDocumento} pendiente/s).`,
+    `- Socios: ${socios.length} registro(s), participacion total ${totalParticipacion.toFixed(2)}%.`,
+    "",
+    "Recomendaciones inmediatas:",
+    descuadre > 1 ? "1) Revisar asientos con diferencia Debe/Haber antes de cerrar periodo." : "1) Partida doble dentro de rango aceptable.",
+    porcentajeDocumentado < 90
+      ? "2) Completar tipo de documento en operaciones SIN_DOCUMENTO o DESCONOCIDO para reducir riesgo tributario."
+      : "2) Cobertura documental saludable para fiscalizacion.",
+    diferenciaSocios > 0.5
+      ? "3) Ajustar participaciones de socios para que el total sea 100%."
+      : "3) Participacion societaria consistente."
+  ].join("\n");
+}
+
+function buildCopilotContext(empresaId: number | null): {
+  hasEmpresa: boolean;
+  empresaNombre: string;
+  asientos: number;
+  auditoria: number;
+  cuentas: number;
+  socios: number;
+  etapa: "sin-empresa" | "sin-datos" | "en-carga" | "con-control";
+} {
+  if (typeof empresaId !== "number") {
+    return {
+      hasEmpresa: false,
+      empresaNombre: "",
+      asientos: 0,
+      auditoria: 0,
+      cuentas: 0,
+      socios: 0,
+      etapa: "sin-empresa"
+    };
+  }
+
+  const empresas = listEmpresas();
+  const empresa = empresas.find((item) => item.id === empresaId);
+  const asientos = listAsientos(empresaId).length;
+  const auditoria = listRegistrosAuditoria(empresaId).length;
+  const cuentas = listCuentasContables(empresaId).length;
+  const socios = listSociosEmpresa(empresaId).length;
+
+  let etapa: "sin-empresa" | "sin-datos" | "en-carga" | "con-control" = "sin-datos";
+  if (asientos === 0 && auditoria === 0) {
+    etapa = "sin-datos";
+  } else if (asientos > 0 && auditoria < 15) {
+    etapa = "en-carga";
+  } else {
+    etapa = "con-control";
+  }
+
+  return {
+    hasEmpresa: true,
+    empresaNombre: empresa?.nombre ?? "Empresa activa",
+    asientos,
+    auditoria,
+    cuentas,
+    socios,
+    etapa
+  };
+}
+
+async function askCopilotIa(input: CopilotAskInput): Promise<CopilotAskResult> {
+  const questionRaw = input.message ?? "";
+  const question = questionRaw.trim();
+  if (!question) {
+    return {
+      answer: "Escribe tu consulta y te respondo con criterio contable, NIIF y tributario chileno.",
+      suggestedActions: ["Pregunta por IVA, F29, F22, asientos o cierre mensual."],
+      confidence: "alta"
+    };
+  }
+
+  const lower = question.toLowerCase();
+  const empresaId = typeof input.empresaId === "number" ? input.empresaId : getEmpresaActivaId();
+  const contexto = buildCopilotContext(empresaId);
+
+  if (!contexto.hasEmpresa) {
+    return {
+      answer: [
+        "Antes de recomendarte acciones, necesito contexto de una empresa activa.",
+        "Selecciona una empresa en Principal y vuelve a preguntar.",
+        "Asi las recomendaciones se basan en tus datos reales y no en supuestos."
+      ].join("\n"),
+      suggestedActions: ["Seleccionar empresa activa", "Cargar plan base Chile"],
+      confidence: "alta"
+    };
+  }
+
+  if (contexto.etapa === "sin-datos" && !/(niif|ifrs|iva|f29|f22|factura|boleta|honorario)/.test(lower)) {
+    return {
+      answer: [
+        `Todavia no hay registros suficientes en ${contexto.empresaNombre} para un diagnostico profundo.`,
+        "No te voy a recomendar controles avanzados sin datos reales.",
+        "Primero registra operaciones y luego te doy una verificacion completa con hallazgos concretos."
+      ].join("\n"),
+      suggestedActions: [
+        "Registrar primera operacion desde texto libre",
+        "Cargar plan base Chile si aun no existe",
+        "Volver a ejecutar 'Verificar todo'"
+      ],
+      confidence: "alta"
+    };
+  }
+
+  const wantsCheck = /(verifica|verificar|revisa|revisar|chequea|chequear|todo bien|salud contable|diagnostico)/.test(lower);
+  if (wantsCheck && empresaId) {
+    const health = await buildCopilotHealthCheck(empresaId);
+    return {
+      answer: `${health}\n\nContexto actual: ${contexto.asientos} asiento(s), ${contexto.auditoria} registro(s) de auditoria, ${contexto.cuentas} cuenta(s), ${contexto.socios} socio(s).\n\nNota: este analisis es de apoyo operativo y no reemplaza asesoria legal/tributaria formal.`,
+      suggestedActions: [
+        contexto.auditoria > 0
+          ? "Abre Auditoria para corregir documentos pendientes."
+          : "Aun no hay auditoria suficiente; registra operaciones para activar controles.",
+        contexto.asientos > 0
+          ? "Valida Balance y Libro Diario antes de declarar."
+          : "Registra asientos iniciales para evaluar cuadratura y cierre.",
+        "Genera un respaldo antes de aplicar ajustes."
+      ],
+      confidence: "alta"
+    };
+  }
+
+  if (/(niif|ifrs|norma internacional|estado financiero)/.test(lower)) {
+    return {
+      answer: [
+        "Guia NIIF (resumen practico):",
+        "- NIIF para PYMES: usa politicas contables consistentes, revelaciones claras y evidencia de estimaciones.",
+        "- Devengo: reconoce ingresos y gastos cuando ocurren, no solo cuando se pagan/cobran.",
+        "- Materialidad: prioriza partidas con impacto en decision del usuario de estados financieros.",
+        "- Presentacion: Balance, Estado de Resultados y notas explicativas con trazabilidad documental.",
+        "",
+        "Si quieres, te puedo traducir esto a un checklist de cierre mensual para tu empresa activa."
+      ].join("\n"),
+      suggestedActions: ["Pedir checklist NIIF mensual", "Pedir formato de notas contables"],
+      confidence: "media"
+    };
+  }
+
+  if (/(iva|f29|debito fiscal|credito fiscal|boleta|factura|honorario|retencion)/.test(lower)) {
+    return {
+      answer: [
+        "Resumen tributario Chile (orientativo):",
+        "- F29: se basa en debito fiscal de ventas menos credito fiscal de compras con respaldo valido.",
+        "- Factura afecta genera IVA; factura/boleta exenta no genera debito de IVA.",
+        "- Honorarios: normalmente implican retencion y control separado para declaracion.",
+        "- Sin documento: aumenta riesgo de observaciones en fiscalizacion.",
+        "",
+        "Si me das un caso concreto (monto, documento, medio de pago), te propongo asiento y criterio tributario."
+      ].join("\n"),
+      suggestedActions: ["Solicitar asiento propuesto", "Pedir impacto en F29"],
+      confidence: "media"
+    };
+  }
+
+  if (/(asiento|debe|haber|partida doble|balance|libro diario|libro mayor|cierre)/.test(lower)) {
+    return {
+      answer: [
+        "Criterio contable operativo:",
+        "- Todo asiento debe cuadrar: Debe = Haber.",
+        "- Libro Diario registra la cronologia; Libro Mayor concentra por cuenta.",
+        "- Antes de cierre: valida documentos, cuentas de IVA, provisiones y conciliaciones.",
+        "",
+        contexto.asientos > 0
+          ? "Puedo darte un plan de cierre paso a paso para el mes actual de tu empresa activa."
+          : "Aun no hay asientos para cierre; primero te puedo guiar con un asiento inicial correcto."
+      ].join("\n"),
+      suggestedActions: contexto.asientos > 0
+        ? ["Pedir plan de cierre", "Pedir control de cuadratura"]
+        : ["Registrar asiento inicial", "Definir cuentas principales"],
+      confidence: "alta"
+    };
+  }
+
+  return {
+    answer: [
+      "Copilot IA te puede ayudar en contabilidad, NIIF e impuestos de Chile.",
+      "Para darte una respuesta de alto valor, enviame el caso con este formato:",
+      "- Hecho economico",
+      "- Monto",
+      "- Documento (factura/boleta/honorarios/sin documento)",
+      "- Medio de pago (caja/banco/proveedor/cliente)",
+      "",
+      "Con eso te devuelvo criterio, asiento sugerido y riesgos de control."
+    ].join("\n"),
+    suggestedActions: ["Revisar si todo esta correcto", "Consultar IVA/F29", "Consultar NIIF"],
+    confidence: "media"
+  };
 }
 
 function requestJson(url: string): Promise<Record<string, { valor?: number; fecha?: string } | string>> {
@@ -773,6 +1033,10 @@ app.whenReady().then(() => {
     }, 500);
 
     return { ok: true, message: "Instalando actualizacion. La aplicacion se reiniciara." };
+  });
+
+  ipcMain.handle("copilot:ask", async (_, input: CopilotAskInput) => {
+    return askCopilotIa(input);
   });
 
   ipcMain.handle("exportar:csv-libro-diario", async (_, input: { empresaId: number; fechaDesde?: string; fechaHasta?: string }) => {

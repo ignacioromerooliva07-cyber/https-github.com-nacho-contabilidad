@@ -109,6 +109,11 @@ contextBridge.exposeInMainWorld("contabilidadApi", {
   getUpdateState: () => ipcRenderer.invoke("app:update-state"),
   checkForUpdatesNow: () => ipcRenderer.invoke("app:update-check"),
   installDownloadedUpdate: () => ipcRenderer.invoke("app:update-install"),
+  askCopilotIa: (input: {
+    message: string;
+    empresaId?: number | null;
+    history?: Array<{ role: "user" | "assistant"; content: string }>;
+  }) => ipcRenderer.invoke("copilot:ask", input),
   onUpdateStatus: (callback: (state: unknown) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => callback(payload);
     ipcRenderer.on("update:status", listener);
