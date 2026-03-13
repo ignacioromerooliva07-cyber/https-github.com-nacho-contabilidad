@@ -27,8 +27,6 @@ jobs:
       - name: Build and publish unsigned release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CONTABILIDAD_GH_OWNER: ${{ github.repository_owner }}
-          CONTABILIDAD_GH_REPO: ${{ github.event.repository.name }}
         run: |
           npm run build
-          node scripts/build-github-release.cjs
+          npx electron-builder --win nsis --publish always --config.publish.provider=github --config.publish.owner=${{ github.repository_owner }} --config.publish.repo=${{ github.event.repository.name }}
