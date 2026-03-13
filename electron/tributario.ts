@@ -69,6 +69,9 @@ export function detectarTipoOperacionExtendida(textoNormalizado: string): TipoOp
   if (/(capital inicial|capital de apertura|aporte inicial|aporte de capital|inicio de capital|inversion inicial|inversion de apertura|aportes|apertura empresa|inicio empresa|inicio de actividades|constitucion de empresa|empresa nueva|aporte de socio|aporte de dueno|aportes de socios|vehiculo inicial|activo inicial|\binicial\b.*(aporte|capital|empresa|socio|dueno|vehiculo|activo)|(?:aporte|capital|empresa|socio|dueno|vehiculo|activo).*\binicial\b)/.test(textoNormalizado)) {
     return "CAPITAL_INICIAL";
   }
+  if (/\n/.test(textoNormalizado) && /(banco|caja|computador|computadores|mobiliario|vehiculo|vehiculos|auto|camioneta|mueble|muebles|equipo)/.test(textoNormalizado)) {
+    return "CAPITAL_INICIAL";
+  }
   if (/(boleta de honorario|honorario)/.test(textoNormalizado)) {
     return "HONORARIOS";
   }

@@ -80,6 +80,13 @@ declare global {
     textoOriginal: string;
     aplicaIva: boolean;
     resumenTributario: string;
+    mensajeCopilot?: string;
+    componentesCapital?: Array<{
+      nombre: string;
+      monto: number;
+      cuentaCodigo: string;
+      cuentaNombre: string;
+    }>;
   }
 
   interface OperacionPendiente {

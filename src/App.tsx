@@ -224,7 +224,7 @@ export default function App(): JSX.Element {
     {
       role: "assistant",
       content:
-        "Soy Copilot IA. Te apoyo con criterios contables, NIIF y tributarios de Chile. Tambien puedo revisar la salud de tu empresa activa.",
+        "Hola. Soy Copilot IA. Puedo ayudarte como apoyo contable en temas NIIF, tributación chilena y revisión de tus registros. Si quieres, cuéntame el caso tal como te lo diría un cliente y lo trabajamos juntas paso a paso.",
       createdAt: new Date().toISOString()
     }
   ]);
@@ -2624,6 +2624,12 @@ export default function App(): JSX.Element {
             {pendienteConfirmacion ? (
               <article className="card preview-card">
                 <h2>Confirmar operacion</h2>
+                {pendienteConfirmacion.interpretacion.mensajeCopilot ? (
+                  <div className="copilot-inline-note">
+                    <strong>Copilot IA</strong>
+                    <p>{pendienteConfirmacion.interpretacion.mensajeCopilot}</p>
+                  </div>
+                ) : null}
                 <div className="preview-filas">
                   <div className="preview-fila"><span>Tipo</span><strong>{{ COMPRA_GENERAL: "Compra de mercaderias", VENTA_GENERAL: "Venta", GASTO_GENERAL: "Gasto general", SUELDOS: "Sueldos y remuneraciones", ARRIENDO: "Arriendo", SERVICIOS_BASICOS: "Servicios basicos", HONORARIOS: "Honorarios", CAPITAL_INICIAL: "Capital inicial" }[pendienteConfirmacion.interpretacion.categoriaOperacion] ?? pendienteConfirmacion.interpretacion.categoriaOperacion}</strong></div>
                   <div className="preview-fila"><span>Modo IVA</span><strong>{{ NO_APLICA: "No aplica", IVA_INCLUIDO: "IVA incluido", MAS_IVA: "Mas IVA" }[pendienteConfirmacion.interpretacion.modoIva] ?? pendienteConfirmacion.interpretacion.modoIva}</strong></div>
@@ -2635,6 +2641,18 @@ export default function App(): JSX.Element {
                   <div className="preview-fila"><span>Documento</span><strong className={pendienteConfirmacion.interpretacion.tipoDocumento === "DESCONOCIDO" ? "badge-alerta" : "badge-ok"}>{{ FACTURA: "Factura", FACTURA_EXENTA: "Factura exenta", BOLETA: "Boleta", BOLETA_EXENTA: "Boleta exenta", BOLETA_HONORARIOS: "Boleta de honorarios", SIN_DOCUMENTO: "Sin documento", DESCONOCIDO: "Por confirmar" }[pendienteConfirmacion.interpretacion.tipoDocumento] ?? pendienteConfirmacion.interpretacion.tipoDocumento}</strong></div>
                   <div className="preview-fila preview-fila-detalle"><span>Tratamiento tributario</span><strong>{pendienteConfirmacion.interpretacion.resumenTributario}</strong></div>
                 </div>
+                {pendienteConfirmacion.interpretacion.componentesCapital?.length ? (
+                  <div className="capital-componentes-box">
+                    <strong>Componentes detectados del capital inicial</strong>
+                    <ul>
+                      {pendienteConfirmacion.interpretacion.componentesCapital.map((item) => (
+                        <li key={`${item.cuentaCodigo}-${item.nombre}`}>
+                          {item.nombre}: $ {item.monto.toLocaleString("es-CL")} a {item.cuentaNombre} ({item.cuentaCodigo})
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {pendienteConfirmacion.necesitaConfirmacion ? (
                   <div className="confirmacion-pregunta">
                     <p><strong>{pendienteConfirmacion.pregunta}</strong></p>

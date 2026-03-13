@@ -234,6 +234,13 @@ export interface InterpretacionTexto {
   textoOriginal: string;
   aplicaIva: boolean;
   resumenTributario: string;
+  mensajeCopilot?: string;
+  componentesCapital?: Array<{
+    nombre: string;
+    monto: number;
+    cuentaCodigo: string;
+    cuentaNombre: string;
+  }>;
 }
 
 export interface ResultadoInterpretacion {
@@ -273,6 +280,10 @@ const PLAN_BASE_CHILE: Array<{
   { codigo: "1.1.1.02", nombre: "Banco Estado", tipo: "ACTIVO", naturaleza: "DEUDORA" },
   { codigo: "1.1.2.01", nombre: "Clientes", tipo: "ACTIVO", naturaleza: "DEUDORA" },
   { codigo: "1.1.3.01", nombre: "Inventario", tipo: "ACTIVO", naturaleza: "DEUDORA" },
+  { codigo: "1.2.1.01", nombre: "Equipos Computacionales", tipo: "ACTIVO", naturaleza: "DEUDORA" },
+  { codigo: "1.2.1.02", nombre: "Mobiliario y Equipos", tipo: "ACTIVO", naturaleza: "DEUDORA" },
+  { codigo: "1.2.1.03", nombre: "Vehiculos", tipo: "ACTIVO", naturaleza: "DEUDORA" },
+  { codigo: "1.2.1.90", nombre: "Otros Activos de Apertura", tipo: "ACTIVO", naturaleza: "DEUDORA" },
   { codigo: "2.1.1.01", nombre: "Proveedores", tipo: "PASIVO", naturaleza: "ACREEDORA" },
   { codigo: "2.1.2.01", nombre: "IVA Debito Fiscal", tipo: "PASIVO", naturaleza: "ACREEDORA" },
   { codigo: "2.1.2.02", nombre: "IVA Credito Fiscal", tipo: "ACTIVO", naturaleza: "DEUDORA" },
@@ -1083,6 +1094,71 @@ function round2(value: number): number {
   return Number(value.toFixed(2));
 }
 
+function parseMontoLibre(raw: string): number {
+  const normalizado = raw.replace(/\s/g, "").replace(/\./g, "").replace(/,/g, ".");
+  const monto = Number(normalizado);
+  return Number.isFinite(monto) ? round2(monto) : 0;
+}
+
+function parseCapitalComponents(texto: string): Array<{ nombre: string; monto: number }> {
+  const lineas = texto
+    .split(/\r?\n/)
+    .map((linea) => linea.trim())
+    .filter(Boolean);
+
+  const componentes = lineas
+    .map((linea) => {
+      const match = linea.match(/^(.*?)(\d{1,3}(?:[.\s]\d{3})+|\d+(?:[.,]\d+)?)\s*$/);
+      if (!match) return null;
+
+      const nombre = match[1].replace(/[:\-–]+$/g, "").trim();
+      const monto = parseMontoLibre(match[2]);
+      if (!nombre || monto <= 0) return null;
+
+      return { nombre, monto };
+    })
+    .filter((item): item is { nombre: string; monto: number } => Boolean(item));
+
+  return componentes.length >= 2 ? componentes : [];
+}
+
+function inferCapitalCuenta(nombre: string): { codigo: string; nombre: string } {
+  const normalizado = normalizarTextoOperacion(nombre);
+
+  if (/(banco|cuenta corriente|cta corriente)/.test(normalizado)) {
+    return { codigo: "1.1.1.02", nombre: "Banco Estado" };
+  }
+  if (/(caja|efectivo)/.test(normalizado)) {
+    return { codigo: "1.1.1.01", nombre: "Caja" };
+  }
+  if (/(computador|computadores|notebook|pc|laptop|equipo computacional|servidor)/.test(normalizado)) {
+    return { codigo: "1.2.1.01", nombre: "Equipos Computacionales" };
+  }
+  if (/(mobiliario|mueble|muebles|escritorio|silla|mesa|estanteria)/.test(normalizado)) {
+    return { codigo: "1.2.1.02", nombre: "Mobiliario y Equipos" };
+  }
+  if (/(vehiculo|auto|camioneta|camion|furgon|bus|minibus)/.test(normalizado)) {
+    return { codigo: "1.2.1.03", nombre: "Vehiculos" };
+  }
+
+  return { codigo: "1.2.1.90", nombre: "Otros Activos de Apertura" };
+}
+
+function ensureCuentaContable(
+  empresaId: number,
+  codigo: string,
+  nombre: string,
+  tipo = "ACTIVO",
+  naturaleza = "DEUDORA"
+): CuentaContableRecord {
+  const existente = getCuentaPorCodigo(empresaId, codigo);
+  if (existente) {
+    return existente;
+  }
+
+  return createCuentaContable({ empresaId, codigo, nombre, tipo, naturaleza });
+}
+
 
 
 function detectarCategoriaServicioExento(textoNormalizado: string, giroNormalizado: string): string | null {
@@ -1342,7 +1418,12 @@ export function interpretarTextoOperacion(input: {
   const tipoOperacion = detectarTipoOperacionExtendida(textoNormalizado);
   const categoriaOperacion = detectarCategoriaOperacion(textoNormalizado, tipoOperacion);
   const tipoDocumentoDetectado = detectarDocumentoTributario(textoNormalizado);
-  const montoBase = extraerMontoDesdeTexto(textoNormalizado);
+  const componentesCapital = tipoOperacion === "CAPITAL_INICIAL"
+    ? parseCapitalComponents(texto)
+    : [];
+  const montoBase = componentesCapital.length > 0
+    ? round2(componentesCapital.reduce((sum, item) => sum + item.monto, 0))
+    : extraerMontoDesdeTexto(textoNormalizado);
   const ajusteDocumento = ajustarDocumentoSegunContextoServicio({
     tipoOperacion,
     categoriaOperacion,
@@ -1391,6 +1472,22 @@ export function interpretarTextoOperacion(input: {
   const pregunta = necesitaConfirmacion
     ? `Se ${verboOp} por $${desgloseMontos.montoTotal.toFixed(0)}. ¿Tiene documento tributario?`
     : "";
+  const componentesCapitalDetallados = componentesCapital.map((item) => {
+    const cuenta = inferCapitalCuenta(item.nombre);
+    return {
+      nombre: item.nombre,
+      monto: item.monto,
+      cuentaCodigo: cuenta.codigo,
+      cuentaNombre: cuenta.nombre
+    };
+  });
+  const mensajeCopilot = tipoOperacion === "CAPITAL_INICIAL"
+    ? componentesCapitalDetallados.length > 0
+      ? `Entendi un capital inicial compuesto por ${componentesCapitalDetallados.length} aporte(s). Los voy a separar por activo y a abonar Capital por el total de $${desgloseMontos.montoTotal.toLocaleString("es-CL")}.`
+      : `Puedo registrar este capital inicial, pero si quieres un asiento mas profesional conviene separar cada bien en una linea con su monto.`
+    : necesitaConfirmacion
+      ? `Antes de registrar, necesito confirmar el documento para clasificar bien el tratamiento tributario.`
+      : `Ya tengo una propuesta de registro coherente con el contexto detectado.`;
 
   return {
     empresaId,
@@ -1407,7 +1504,9 @@ export function interpretarTextoOperacion(input: {
       medioPago,
       textoOriginal: texto,
       aplicaIva: tratamientoTributario.aplicaIva,
-      resumenTributario: `${tratamientoTributario.resumenTributario} Desglose: neto $${desgloseMontos.montoNeto.toFixed(0)}, IVA $${desgloseMontos.montoIva.toFixed(0)}, total $${desgloseMontos.montoTotal.toFixed(0)}.`
+      resumenTributario: `${tratamientoTributario.resumenTributario} Desglose: neto $${desgloseMontos.montoNeto.toFixed(0)}, IVA $${desgloseMontos.montoIva.toFixed(0)}, total $${desgloseMontos.montoTotal.toFixed(0)}.`,
+      mensajeCopilot,
+      componentesCapital: componentesCapitalDetallados
     },
     necesitaConfirmacion,
     pregunta,
@@ -1522,8 +1621,23 @@ export function confirmarYRegistrarDesdeInterpretacion(input: {
   } else if (tipoOperacion === "CAPITAL_INICIAL") {
     const cuentaCapital = getCuentaPorCodigo(empresaId, "3.1.1.01");
     if (!cuentaCapital) throw new Error("Falta cuenta de Capital (3.1.1.01). Carga el plan base Chile.");
-    detalles.push({ cuentaId: cuentaCapital.id, debe: 0, haber: montoTotal, detalle: "Aporte de capital inicial" });
-    detalles.push({ cuentaId: cuentaContrapartida.id, debe: montoTotal, haber: 0, detalle: "Ingreso de capital" });
+    const componentesCapital = input.interpretacion.componentesCapital ?? [];
+
+    if (componentesCapital.length > 0) {
+      componentesCapital.forEach((item) => {
+        const cuentaActivo = ensureCuentaContable(empresaId, item.cuentaCodigo, item.cuentaNombre);
+        detalles.push({
+          cuentaId: cuentaActivo.id,
+          debe: item.monto,
+          haber: 0,
+          detalle: `Aporte inicial: ${item.nombre}`
+        });
+      });
+      detalles.push({ cuentaId: cuentaCapital.id, debe: 0, haber: montoTotal, detalle: "Aporte de capital inicial" });
+    } else {
+      detalles.push({ cuentaId: cuentaCapital.id, debe: 0, haber: montoTotal, detalle: "Aporte de capital inicial" });
+      detalles.push({ cuentaId: cuentaContrapartida.id, debe: montoTotal, haber: 0, detalle: "Ingreso de capital" });
+    }
 
   } else {
     throw new Error("Tipo de operacion no soportado.");

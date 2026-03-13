@@ -482,6 +482,20 @@ async function askCopilotIa(input: CopilotAskInput): Promise<CopilotAskResult> {
   const empresaId = typeof input.empresaId === "number" ? input.empresaId : getEmpresaActivaId();
   const contexto = buildCopilotContext(empresaId);
 
+  if (/^(hola|buenas|buen dia|buen día|hello|holi|que tal|cómo estás|como estas)/.test(lower)) {
+    return {
+      answer: [
+        `Hola. Soy Copilot IA y te acompaño como apoyo contable dentro de ${contexto.hasEmpresa ? contexto.empresaNombre : "la app"}.`,
+        contexto.hasEmpresa
+          ? `Ahora mismo veo ${contexto.asientos} asiento(s) y ${contexto.auditoria} registro(s) de auditoría.`
+          : "Cuando selecciones una empresa, podré responder con contexto real.",
+        "Si quieres, puedo revisar un caso puntual, ayudarte a registrar un asiento o revisar si todo se ve consistente."
+      ].join("\n"),
+      suggestedActions: ["Revisar si todo está correcto", "Consultar un caso de venta o gasto"],
+      confidence: "alta"
+    };
+  }
+
   if (!contexto.hasEmpresa) {
     return {
       answer: [
@@ -526,6 +540,54 @@ async function askCopilotIa(input: CopilotAskInput): Promise<CopilotAskResult> {
       ],
       confidence: "alta"
     };
+  }
+
+  if (empresaId && /(venta|vendi|vendio|compra|compre|compro|gasto|pague|pague|honorario|capital inicial|aporte)/.test(lower)) {
+    try {
+      const interpretacion = interpretarTextoOperacion({
+        empresaId,
+        fecha: new Date().toISOString().slice(0, 10),
+        texto: question
+      });
+
+      const docLabel = {
+        FACTURA: "factura afecta",
+        FACTURA_EXENTA: "factura exenta",
+        BOLETA: "boleta afecta",
+        BOLETA_EXENTA: "boleta exenta",
+        BOLETA_HONORARIOS: "boleta de honorarios",
+        SIN_DOCUMENTO: "sin documento",
+        DESCONOCIDO: "documento por confirmar"
+      }[interpretacion.interpretacion.tipoDocumento];
+
+      const base = [
+        `Te lo explico como lo registraría: detecté una operación de tipo ${interpretacion.interpretacion.categoriaOperacion.replace(/_/g, " ").toLowerCase()}.`,
+        `Documento estimado: ${docLabel}.`,
+        `Monto total: $${interpretacion.interpretacion.montoTotal.toLocaleString("es-CL")}.`,
+        `Tratamiento: ${interpretacion.interpretacion.resumenTributario}`
+      ];
+
+      if (interpretacion.interpretacion.componentesCapital?.length) {
+        base.push(
+          `Además detecté ${interpretacion.interpretacion.componentesCapital.length} componente(s) de capital inicial, así que no lo dejaría todo mezclado en una sola línea.`
+        );
+      }
+
+      if (interpretacion.necesitaConfirmacion) {
+        base.push(`Antes de registrarlo, te preguntaría esto: ${interpretacion.pregunta}`);
+      }
+
+      return {
+        answer: base.join("\n"),
+        suggestedActions: [
+          interpretacion.necesitaConfirmacion ? "Confirmar el documento tributario" : "Registrar la operación con esa lógica",
+          "Revisar el asiento propuesto"
+        ],
+        confidence: "alta"
+      };
+    } catch {
+      // Si no se logra interpretar bien, caemos a respuesta general más abajo.
+    }
   }
 
   if (/(niif|ifrs|norma internacional|estado financiero)/.test(lower)) {
@@ -581,14 +643,9 @@ async function askCopilotIa(input: CopilotAskInput): Promise<CopilotAskResult> {
 
   return {
     answer: [
-      "Copilot IA te puede ayudar en contabilidad, NIIF e impuestos de Chile.",
-      "Para darte una respuesta de alto valor, enviame el caso con este formato:",
-      "- Hecho economico",
-      "- Monto",
-      "- Documento (factura/boleta/honorarios/sin documento)",
-      "- Medio de pago (caja/banco/proveedor/cliente)",
-      "",
-      "Con eso te devuelvo criterio, asiento sugerido y riesgos de control."
+      "Puedo conversar contigo de forma más libre, no solo por parámetros cerrados.",
+      "Si me cuentas el caso como se lo contarías a una contadora, intento interpretarlo con tu contexto real.",
+      "Si el caso trae monto, documento y medio de pago, además te puedo adelantar cómo quedaría el asiento y qué riesgo tributario veo."
     ].join("\n"),
     suggestedActions: ["Revisar si todo esta correcto", "Consultar IVA/F29", "Consultar NIIF"],
     confidence: "media"

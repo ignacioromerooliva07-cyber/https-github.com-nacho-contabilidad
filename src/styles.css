@@ -453,6 +453,40 @@ body {
   justify-content: flex-end;
 }
 
+.copilot-inline-note {
+  margin: 0.75rem 0 1rem;
+  border: 1px solid #b8d8c4;
+  border-radius: 12px;
+  background: #f4fff7;
+  padding: 0.75rem 0.85rem;
+}
+
+.copilot-inline-note strong {
+  color: #1d5f35;
+}
+
+.copilot-inline-note p {
+  margin: 0.35rem 0 0;
+  color: #315a43;
+}
+
+.capital-componentes-box {
+  margin-top: 0.9rem;
+  border-top: 1px solid #d2e0eb;
+  padding-top: 0.75rem;
+}
+
+.capital-componentes-box strong {
+  color: #1f5f8b;
+}
+
+.capital-componentes-box ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
 .tabs-bar {
   margin-top: 1rem;
   display: flex;
