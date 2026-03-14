@@ -481,7 +481,7 @@ async function askCopilotIa(input: CopilotAskInput): Promise<CopilotAskResult> {
   if (!question) {
     return {
       answer: "Escribe tu consulta y te respondo con criterio contable, NIIF y tributario chileno.",
-      suggestedActions: ["Pregunta por IVA, F29, F22, asientos o cierre mensual."],
+      suggestedActions: ["Pregunta por IVA, depreciacion de activos, inmobiliaria SII o cierre mensual."],
       confidence: "alta"
     };
   }
@@ -499,7 +499,7 @@ async function askCopilotIa(input: CopilotAskInput): Promise<CopilotAskResult> {
           : "Cuando selecciones una empresa, podré responder con contexto real.",
         "Si quieres, puedo revisar un caso puntual, ayudarte a registrar un asiento o revisar si todo se ve consistente."
       ].join("\n"),
-      suggestedActions: ["Revisar si todo está correcto", "Consultar un caso de venta o gasto"],
+      suggestedActions: ["Revisar si todo está correcto", "Consultar depreciacion o inmobiliaria SII"],
       confidence: "alta"
     };
   }
@@ -516,7 +516,7 @@ async function askCopilotIa(input: CopilotAskInput): Promise<CopilotAskResult> {
     };
   }
 
-  if (contexto.etapa === "sin-datos" && !/(niif|ifrs|iva|f29|f22|factura|boleta|honorario)/.test(lower)) {
+  if (contexto.etapa === "sin-datos" && !/(niif|ifrs|iva|f29|f22|factura|boleta|honorario|depreci|activo fijo|vida util|inmobili|arriendo|bienes raices|sii)/.test(lower)) {
     return {
       answer: [
         `Todavia no hay registros suficientes en ${contexto.empresaNombre} para un diagnostico profundo.`,
@@ -735,13 +735,64 @@ async function askCopilotIa(input: CopilotAskInput): Promise<CopilotAskResult> {
     };
   }
 
+  if (/(depreci|depreciacion|depreciación|activo fijo|vida util|vida útil|valor residual|lineal|amortizacion|amortización)/.test(lower)) {
+    return {
+      answer: [
+        "Guía práctica de depreciación (enfoque PYME Chile):",
+        "- Base depreciable = costo del activo − valor residual estimado.",
+        "- Método lineal mensual: depreciación mensual = base depreciable / vida útil en meses.",
+        "- Reconocimiento: gasto por depreciación (resultado) contra depreciación acumulada (activo contra-cuenta).",
+        "- Inicia cuando el activo está disponible para su uso, no necesariamente cuando se paga.",
+        "",
+        "Asiento tipo mensual:",
+        "  Debe: Gasto Depreciación",
+        "  Haber: Depreciación Acumulada",
+        "",
+        "Tip docente: separa contablemente terreno y construcción. Normalmente el terreno no se deprecia; la construcción sí, según vida útil técnica y política contable.",
+        "",
+        "Fuentes para validar criterio vigente: normativa SII aplicable al régimen tributario + política contable NIIF para PYMES documentada por la empresa."
+      ].join("\n"),
+      suggestedActions: [
+        "Crear plantilla de activos fijos",
+        "Mostrar ejemplo numérico de depreciación mensual",
+        "Explicar diferencia entre depreciación contable y tributaria"
+      ],
+      confidence: "alta"
+    };
+  }
+
+  if (/(inmobili|arriendo|inmueble|bienes raices|bienes raíces|dfl-?2|contribuciones|portal inmobiliario|sii inmobiliaria)/.test(lower)) {
+    return {
+      answer: [
+        "Marco base para actividad inmobiliaria en Chile (resumen operativo):",
+        "- Distingue venta, arriendo exento, arriendo afecto y servicios complementarios: no todo tiene el mismo tratamiento en IVA/F29.",
+        "- Para control interno, separa por proyecto o inmueble: ingresos, costos directos, gastos comunes, contribuciones y mantención.",
+        "- Terreno y construcción deben gestionarse por separado para depreciación y presentación financiera.",
+        "- Mantén respaldo documental estricto (contratos, facturas, boletas, roles, comprobantes de contribuciones y gastos de administración).",
+        "",
+        "Ruta recomendada de fuentes para mantener la app al día:",
+        "1) Portal oficial del SII (normativa y circulares vigentes).",
+        "2) Publicaciones técnicas de contadores/chile (análisis práctico).",
+        "3) Diario Financiero para contexto económico y cambios del mercado inmobiliario.",
+        "",
+        "Si quieres, te armo un checklist inmobiliario mensual (IVA, contratos, contribuciones, depreciación, respaldo) para usar dentro de la empresa activa."
+      ].join("\n"),
+      suggestedActions: [
+        "Pedir checklist inmobiliario mensual",
+        "Explicar IVA en arriendo inmobiliario",
+        "Definir estructura contable por inmueble"
+      ],
+      confidence: "media"
+    };
+  }
+
   return {
     answer: [
       "Puedo conversar contigo de forma más libre, no solo por parámetros cerrados.",
       "Si me cuentas el caso como se lo contarías a una contadora, intento interpretarlo con tu contexto real.",
       "Si el caso trae monto, documento y medio de pago, además te puedo adelantar cómo quedaría el asiento y qué riesgo tributario veo."
     ].join("\n"),
-    suggestedActions: ["Revisar si todo esta correcto", "Consultar IVA/F29", "Consultar NIIF"],
+    suggestedActions: ["Revisar si todo esta correcto", "Consultar depreciacion", "Consultar inmobiliaria SII"],
     confidence: "media"
   };
 }

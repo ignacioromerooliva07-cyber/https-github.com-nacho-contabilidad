@@ -2903,7 +2903,9 @@ export default function App(): JSX.Element {
             {[
               "Como registrar una venta con factura afecta IVA",
               "Explicame diferencia entre factura y boleta para F29",
-              "Dame checklist NIIF para cierre mensual"
+              "Dame checklist NIIF para cierre mensual",
+              "Explicame depreciacion mensual de activos fijos",
+              "Que debo controlar en inmobiliaria segun SII"
             ].map((prompt) => (
               <button
                 key={prompt}
