@@ -181,6 +181,7 @@ export default function App(): JSX.Element {
   const [guardandoEdicionCuenta, setGuardandoEdicionCuenta] = useState(false);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [eliminandoEmpresaId, setEliminandoEmpresaId] = useState<number | null>(null);
   const [mensajeError, setMensajeError] = useState<string | null>(null);
   const [mensajeInfo, setMensajeInfo] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>("principal");
@@ -1870,14 +1871,25 @@ export default function App(): JSX.Element {
   }
 
   async function onEliminarEmpresa(id: number): Promise<void> {
+    const confirmacion = window.confirm(
+      "Se eliminara la empresa y sus datos asociados (asientos, cuentas, auditoria y eventos). ¿Deseas continuar?"
+    );
+    if (!confirmacion) {
+      return;
+    }
+
     try {
+      setEliminandoEmpresaId(id);
       setMensajeError(null);
-      setMensajeInfo(null);
+      setMensajeInfo("Eliminando empresa...");
       await window.contabilidadApi.deleteEmpresa(id);
       await cargarEmpresas();
+      setMensajeInfo("Empresa eliminada correctamente.");
     } catch (error) {
       const message = error instanceof Error ? error.message : "No se pudo eliminar la empresa.";
       setMensajeError(message);
+    } finally {
+      setEliminandoEmpresaId(null);
     }
   }
 
@@ -2550,7 +2562,14 @@ export default function App(): JSX.Element {
                   </span>
                 </div>
                 <div className="acciones-inline">
-                  <button type="button" className="btn-secundario" onClick={() => void onEliminarEmpresa(empresa.id)}>Eliminar</button>
+                  <button
+                    type="button"
+                    className="btn-secundario"
+                    disabled={eliminandoEmpresaId === empresa.id}
+                    onClick={() => void onEliminarEmpresa(empresa.id)}
+                  >
+                    {eliminandoEmpresaId === empresa.id ? "Eliminando..." : "Eliminar"}
+                  </button>
                   <button
                     type="button"
                     className={empresaActivaId === empresa.id ? "btn-activa" : "btn-secundario"}
@@ -2562,6 +2581,8 @@ export default function App(): JSX.Element {
               </li>
             ))}
           </ul>
+          {mensajeError ? <p className="error-box">{mensajeError}</p> : null}
+          {mensajeInfo ? <p className="info-box">{mensajeInfo}</p> : null}
         </article>
       </section>
 
