@@ -85,6 +85,7 @@ type EstadoActualizacion =
   | "available"
   | "downloading"
   | "downloaded"
+  | "installing"
   | "error";
 
 type EstadoUpdateRuntime = {
@@ -129,6 +130,7 @@ let indicadoresCache:
 let mainWindow: BrowserWindow | null = null;
 let updaterConfigured = false;
 let updateInterval: NodeJS.Timeout | null = null;
+let installImmediatelyAfterDownload = false;
 const updateFeedUrl = (process.env.CONTABILIDAD_UPDATE_URL ?? process.env.AUTO_UPDATE_URL ?? "").trim() || null;
 const updateGithubOwner = (process.env.CONTABILIDAD_GH_OWNER ?? "ignacioromerooliva07-cyber").trim() || null;
 const updateGithubRepo = (process.env.CONTABILIDAD_GH_REPO ?? "https-github.com-nacho-contabilidad").trim() || null;
@@ -215,6 +217,7 @@ async function checkForAppUpdates(reason: "startup" | "manual" | "scheduled"): P
   }
 
   try {
+    installImmediatelyAfterDownload = reason === "manual";
     setUpdateState({
       status: "checking",
       lastCheckedAt: new Date().toISOString(),
@@ -224,9 +227,12 @@ async function checkForAppUpdates(reason: "startup" | "manual" | "scheduled"): P
     await autoUpdater.checkForUpdates();
     return {
       ok: true,
-      message: reason === "manual" ? "Buscando actualizaciones..." : "Verificacion de actualizaciones iniciada."
+      message: reason === "manual"
+        ? "Buscando actualizaciones. Si hay una nueva version, se descargara y se aplicara automaticamente."
+        : "Verificacion de actualizaciones iniciada."
     };
   } catch (error) {
+    installImmediatelyAfterDownload = false;
     const detail = error instanceof Error ? error.message : "Error desconocido al buscar actualizaciones.";
     setUpdateState({ status: "error", lastError: detail });
     return { ok: false, message: detail };
@@ -288,6 +294,7 @@ function configureAutoUpdates(): void {
   });
 
   autoUpdater.on("update-not-available", () => {
+    installImmediatelyAfterDownload = false;
     setUpdateState({
       status: "idle",
       latestVersion: app.getVersion(),
@@ -302,6 +309,22 @@ function configureAutoUpdates(): void {
   });
 
   autoUpdater.on("update-downloaded", (info: UpdateInfo) => {
+    if (installImmediatelyAfterDownload) {
+      installImmediatelyAfterDownload = false;
+      setUpdateState({
+        status: "installing",
+        latestVersion: info.version ?? updateState.latestVersion,
+        releaseNotes: normalizeReleaseNotes(info),
+        downloadPercent: 100,
+        lastError: null
+      });
+
+      setTimeout(() => {
+        autoUpdater.quitAndInstall(true, true);
+      }, 1200);
+      return;
+    }
+
     setUpdateState({
       status: "downloaded",
       latestVersion: info.version ?? updateState.latestVersion,
@@ -312,6 +335,7 @@ function configureAutoUpdates(): void {
   });
 
   autoUpdater.on("error", (error: Error) => {
+    installImmediatelyAfterDownload = false;
     setUpdateState({ status: "error", lastError: error.message });
   });
 

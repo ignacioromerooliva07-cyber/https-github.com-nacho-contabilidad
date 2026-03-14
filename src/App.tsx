@@ -226,7 +226,6 @@ export default function App(): JSX.Element {
   const [abriendoCarpetaDatos, setAbriendoCarpetaDatos] = useState(false);
   const [updateState, setUpdateState] = useState<AppUpdateState | null>(null);
   const [buscandoActualizacion, setBuscandoActualizacion] = useState(false);
-  const [instalandoActualizacion, setInstalandoActualizacion] = useState(false);
   const [copilotInput, setCopilotInput] = useState("");
   const [copilotLoading, setCopilotLoading] = useState(false);
   const [copilotMensajes, setCopilotMensajes] = useState<CopilotChatMessage[]>([
@@ -353,6 +352,7 @@ export default function App(): JSX.Element {
       available: "Disponible",
       downloading: "Descargando...",
       downloaded: "Lista para instalar",
+      installing: "Aplicando actualizacion...",
       error: "Error"
     }[updateState.status];
   }, [updateState]);
@@ -363,6 +363,7 @@ export default function App(): JSX.Element {
     return (
       updateState.status === "available"
       || updateState.status === "downloading"
+      || updateState.status === "installing"
       || updateState.status === "downloaded"
     );
   }, [updateState]);
@@ -378,10 +379,14 @@ export default function App(): JSX.Element {
     }
 
     if (updateState.status === "downloaded") {
-      return `Nueva version ${updateState.latestVersion} lista para instalar`;
+      return `Nueva version ${updateState.latestVersion} descargada. Se aplicara al cerrar la app`;
     }
 
-    return `Hay una nueva version ${updateState.latestVersion} disponible para descargar`;
+    if (updateState.status === "installing") {
+      return `Nueva version ${updateState.latestVersion} lista. Cerrando e instalando automaticamente...`;
+    }
+
+    return `Hay una nueva version ${updateState.latestVersion} disponible para descargar y aplicar`;
   }, [updateState, mostrarAvisoUpdateSuperior]);
 
   const esModoCreador = useMemo(
@@ -1500,24 +1505,6 @@ export default function App(): JSX.Element {
     }
   }
 
-  async function onInstalarActualizacionDescargada(): Promise<void> {
-    try {
-      setInstalandoActualizacion(true);
-      setMensajeError(null);
-      const result = await window.contabilidadApi.installDownloadedUpdate();
-      if (result.ok) {
-        setMensajeInfo(result.message);
-      } else {
-        setMensajeError(result.message);
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "No se pudo aplicar la actualizacion.";
-      setMensajeError(message);
-    } finally {
-      setInstalandoActualizacion(false);
-    }
-  }
-
   async function enviarPreguntaCopilot(texto: string): Promise<void> {
     const limpio = texto.trim();
     if (!limpio) return;
@@ -2392,15 +2379,6 @@ export default function App(): JSX.Element {
             <button type="button" className="btn-secundario" onClick={() => setVista("soporte")}>
               Ver detalles
             </button>
-            {updateState?.status === "downloaded" ? (
-              <button
-                type="button"
-                onClick={() => void onInstalarActualizacionDescargada()}
-                disabled={instalandoActualizacion}
-              >
-                {instalandoActualizacion ? "Instalando..." : "Instalar ahora"}
-              </button>
-            ) : null}
           </div>
         </section>
       ) : null}
@@ -2771,15 +2749,7 @@ export default function App(): JSX.Element {
               </ul>
               <div className="soporte-actions">
                 <button type="button" onClick={() => void onBuscarActualizacionesAhora()} disabled={buscandoActualizacion}>
-                  {buscandoActualizacion ? "Buscando..." : "Buscar ahora"}
-                </button>
-                <button
-                  type="button"
-                  className="btn-secundario"
-                  onClick={() => void onInstalarActualizacionDescargada()}
-                  disabled={instalandoActualizacion || updateState?.status !== "downloaded"}
-                >
-                  {instalandoActualizacion ? "Instalando..." : "Instalar y reiniciar"}
+                  {buscandoActualizacion ? "Buscando..." : "Buscar y aplicar update"}
                 </button>
               </div>
               {updateState?.releaseNotes?.length ? (

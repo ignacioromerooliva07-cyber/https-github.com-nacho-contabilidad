@@ -207,7 +207,7 @@ declare global {
     enabled: boolean;
     provider: "generic" | "github" | "disabled";
     feedUrl: string | null;
-    status: "disabled" | "idle" | "checking" | "available" | "downloading" | "downloaded" | "error";
+    status: "disabled" | "idle" | "checking" | "available" | "downloading" | "downloaded" | "installing" | "error";
     currentVersion: string;
     latestVersion: string | null;
     downloadPercent: number | null;
