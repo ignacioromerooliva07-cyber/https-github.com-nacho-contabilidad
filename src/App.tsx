@@ -226,6 +226,8 @@ export default function App(): JSX.Element {
   const [abriendoCarpetaDatos, setAbriendoCarpetaDatos] = useState(false);
   const [updateState, setUpdateState] = useState<AppUpdateState | null>(null);
   const [buscandoActualizacion, setBuscandoActualizacion] = useState(false);
+  const [cuentaRegresivaUpdate, setCuentaRegresivaUpdate] = useState<number | null>(null);
+  const [versionUpdatePospuesta, setVersionUpdatePospuesta] = useState<string | null>(null);
   const [copilotInput, setCopilotInput] = useState("");
   const [copilotLoading, setCopilotLoading] = useState(false);
   const [copilotMensajes, setCopilotMensajes] = useState<CopilotChatMessage[]>([
@@ -351,7 +353,7 @@ export default function App(): JSX.Element {
       checking: "Buscando...",
       available: "Disponible",
       downloading: "Descargando...",
-      downloaded: "Lista para instalar",
+      downloaded: "Lista para aplicar",
       installing: "Aplicando actualizacion...",
       error: "Error"
     }[updateState.status];
@@ -379,7 +381,10 @@ export default function App(): JSX.Element {
     }
 
     if (updateState.status === "downloaded") {
-      return `Nueva version ${updateState.latestVersion} descargada. Se aplicara al cerrar la app`;
+      const countdown = typeof cuentaRegresivaUpdate === "number"
+        ? ` Actualizando en ${cuentaRegresivaUpdate}s.`
+        : " Lista para aplicar.";
+      return `Nueva version ${updateState.latestVersion} descargada.${countdown}`;
     }
 
     if (updateState.status === "installing") {
@@ -387,7 +392,7 @@ export default function App(): JSX.Element {
     }
 
     return `Hay una nueva version ${updateState.latestVersion} disponible para descargar y aplicar`;
-  }, [updateState, mostrarAvisoUpdateSuperior]);
+  }, [cuentaRegresivaUpdate, updateState, mostrarAvisoUpdateSuperior]);
 
   const esModoCreador = useMemo(
     () => supportInfo?.creatorMode ?? window.appInfo.creatorMode,
@@ -1505,6 +1510,29 @@ export default function App(): JSX.Element {
     }
   }
 
+  async function onAplicarActualizacionAhora(): Promise<void> {
+    try {
+      setMensajeError(null);
+      setMensajeInfo(null);
+      setCuentaRegresivaUpdate(null);
+      const result = await window.contabilidadApi.installDownloadedUpdate();
+      if (result.ok) {
+        setMensajeInfo(result.message);
+      } else {
+        setMensajeError(result.message);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo aplicar la actualizacion.";
+      setMensajeError(message);
+    }
+  }
+
+  function onPosponerActualizacion(): void {
+    setCuentaRegresivaUpdate(null);
+    setVersionUpdatePospuesta(updateState?.latestVersion ?? null);
+    setMensajeInfo("Actualizacion pospuesta. Se aplicara cuando vuelvas a buscar una nueva version o al reiniciar el flujo.");
+  }
+
   async function enviarPreguntaCopilot(texto: string): Promise<void> {
     const limpio = texto.trim();
     if (!limpio) return;
@@ -1634,6 +1662,39 @@ export default function App(): JSX.Element {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      updateState?.status === "downloaded"
+      && updateState.latestVersion
+      && updateState.latestVersion !== updateState.currentVersion
+      && updateState.latestVersion !== versionUpdatePospuesta
+    ) {
+      setCuentaRegresivaUpdate((actual) => (actual === null ? 3 : actual));
+      return;
+    }
+
+    if (updateState?.status !== "downloaded") {
+      setCuentaRegresivaUpdate(null);
+    }
+  }, [updateState?.currentVersion, updateState?.latestVersion, updateState?.status, versionUpdatePospuesta]);
+
+  useEffect(() => {
+    if (cuentaRegresivaUpdate === null || updateState?.status !== "downloaded") {
+      return;
+    }
+
+    if (cuentaRegresivaUpdate <= 0) {
+      void onAplicarActualizacionAhora();
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCuentaRegresivaUpdate((actual) => (actual === null ? null : actual - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [cuentaRegresivaUpdate, updateState?.status]);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -2376,6 +2437,16 @@ export default function App(): JSX.Element {
             <span>{textoAvisoUpdateSuperior}</span>
           </div>
           <div className="update-top-banner-actions">
+            {updateState?.status === "downloaded" ? (
+              <>
+                <button type="button" onClick={() => void onAplicarActualizacionAhora()}>
+                  Actualizar ahora
+                </button>
+                <button type="button" className="btn-secundario" onClick={onPosponerActualizacion}>
+                  Posponer
+                </button>
+              </>
+            ) : null}
             <button type="button" className="btn-secundario" onClick={() => setVista("soporte")}>
               Ver detalles
             </button>
@@ -2752,6 +2823,10 @@ export default function App(): JSX.Element {
                   {buscandoActualizacion ? "Buscando..." : "Buscar y aplicar update"}
                 </button>
               </div>
+              <p>
+                Cuando una nueva version termine de descargarse, la app mostrara un aviso superior con cuenta regresiva de 3 segundos.
+                Si no la pospones, se cerrara, actualizara y volvera a abrir automaticamente.
+              </p>
               {updateState?.releaseNotes?.length ? (
                 <div className="soporte-release-notes">
                   <strong>Novedades detectadas</strong>
