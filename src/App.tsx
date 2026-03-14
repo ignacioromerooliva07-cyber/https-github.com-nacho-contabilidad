@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Vista =
   | "principal"
@@ -230,6 +230,7 @@ export default function App(): JSX.Element {
   const [versionUpdatePospuesta, setVersionUpdatePospuesta] = useState<string | null>(null);
   const [copilotInput, setCopilotInput] = useState("");
   const [copilotLoading, setCopilotLoading] = useState(false);
+  const copilotChatRef = useRef<HTMLDivElement | null>(null);
   const [copilotMensajes, setCopilotMensajes] = useState<CopilotChatMessage[]>([
     {
       role: "assistant",
@@ -1590,9 +1591,17 @@ export default function App(): JSX.Element {
     }
   }
 
-  async function onSubmitCopilot(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function onKeyDownCopilotInput(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+
     event.preventDefault();
-    await enviarPreguntaCopilot(copilotInput);
+    if (copilotLoading || !copilotInput.trim()) {
+      return;
+    }
+
+    void enviarPreguntaCopilot(copilotInput);
   }
 
   async function onEjecutarInsightPrivado(action?: InsightPrivado["accion"]): Promise<void> {
@@ -1662,6 +1671,13 @@ export default function App(): JSX.Element {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (vista !== "copilot") return;
+    const chat = copilotChatRef.current;
+    if (!chat) return;
+    chat.scrollTop = chat.scrollHeight;
+  }, [copilotMensajes, vista]);
 
   useEffect(() => {
     if (
@@ -2901,7 +2917,7 @@ export default function App(): JSX.Element {
             ))}
           </div>
 
-          <div className="copilot-chat">
+          <div className="copilot-chat" ref={copilotChatRef}>
             {copilotMensajes.map((msg, idx) => (
               <article key={`${msg.createdAt}-${idx}`} className={`copilot-msg copilot-msg-${msg.role}`}>
                 <span className="copilot-msg-role">{msg.role === "assistant" ? "Copilot IA" : "Tu"}</span>
@@ -2911,18 +2927,17 @@ export default function App(): JSX.Element {
             ))}
           </div>
 
-          <form className="copilot-form" onSubmit={(event) => void onSubmitCopilot(event)}>
+          <form className="copilot-form">
             <textarea
               value={copilotInput}
               onChange={(event) => setCopilotInput(event.target.value)}
+              onKeyDown={onKeyDownCopilotInput}
               placeholder="Escribe tu caso: hecho economico, monto, documento y medio de pago..."
               rows={4}
             />
-            <div className="copilot-form-actions">
-              <button type="submit" disabled={copilotLoading || !copilotInput.trim()}>
-                {copilotLoading ? "Respondiendo..." : "Enviar a Copilot IA"}
-              </button>
-            </div>
+            <small className="copilot-form-hint">
+              Enter para enviar. Shift+Enter para salto de linea.
+            </small>
           </form>
         </section>
       ) : null}

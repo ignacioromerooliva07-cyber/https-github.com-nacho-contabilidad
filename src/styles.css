@@ -529,6 +529,11 @@ body {
   resize: vertical;
 }
 
+.copilot-form-hint {
+  color: #627d98;
+  font-size: 0.82rem;
+}
+
 .copilot-form-actions {
   display: flex;
   justify-content: flex-end;
