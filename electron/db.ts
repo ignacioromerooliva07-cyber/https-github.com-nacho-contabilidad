@@ -762,13 +762,15 @@ export function deleteEmpresa(id: number): void {
      WHERE asiento_id IN (SELECT id FROM Asiento WHERE empresa_id = ?)`
   );
   const deleteAsientos = getDb().prepare("DELETE FROM Asiento WHERE empresa_id = ?");
-  deleteCuentas.run(id);
-  deleteComprobantes.run(id);
-  deleteEventos.run(id);
-  deleteAuditoria.run(id);
-  deleteSocios.run(id);
+
+  // Primero hijos más profundos, después padres para evitar FK constraint failed.
   deleteDetalles.run(id);
   deleteAsientos.run(id);
+  deleteAuditoria.run(id);
+  deleteEventos.run(id);
+  deleteSocios.run(id);
+  deleteComprobantes.run(id);
+  deleteCuentas.run(id);
 
   const stmt = getDb().prepare("DELETE FROM Empresa WHERE id = ?");
   stmt.run(id);

@@ -1886,6 +1886,7 @@ export default function App(): JSX.Element {
       await cargarEmpresas();
       setMensajeInfo("Empresa eliminada correctamente.");
     } catch (error) {
+      setMensajeInfo(null);
       const message = error instanceof Error ? error.message : "No se pudo eliminar la empresa.";
       setMensajeError(message);
     } finally {
